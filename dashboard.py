@@ -15,7 +15,9 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.units import cm
 
-# ─── Patterns & Rules (same as scorer.py) ───────────────────────────────────────
+import google.generativeai as genai
+
+# ─── Patterns & Rules ────────────────────────────────────────────────────────────
 
 URL_PATTERN      = re.compile(r'https?://[^\s\'"<>]{4,}')
 IP_PATTERN       = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
@@ -65,7 +67,6 @@ def analyse_apk(filepath):
 
     ips -= EXCLUDED_IPS
 
-    # Score
     score = 0
     permissions = apk.get_permissions()
     for perm in permissions:
@@ -104,9 +105,47 @@ def analyse_apk(filepath):
         "score":       score,
     }
 
+# ─── Gemini AI Summary ───────────────────────────────────────────────────────────
+
+def generate_ai_summary(result, api_key):
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.5-flash")
+
+        danger_perms = [p.split(".")[-1] for p in result["permissions"]
+                        if p in DANGEROUS_PERMISSIONS]
+        risk_level, _ = get_risk_level(result["score"])
+
+        prompt = f"""You are a cybersecurity analyst specialising in Malaysian mobile banking fraud (like Macau scams, fake banking apps).
+
+Analyse this Android APK scan result and write a clear verdict for a non-technical user (e.g. a bank officer or police investigator).
+
+--- SCAN DATA ---
+Package name   : {result['package']}
+Risk score     : {result['score']} ({risk_level})
+Dangerous perms: {danger_perms if danger_perms else 'None'}
+Telegram C2    : {list(result['telegrams']) if result['telegrams'] else 'None found'}
+Hardcoded IPs  : {list(result['ips']) if result['ips'] else 'None found'}
+Banking keywords: {list(result['keywords']) if result['keywords'] else 'None found'}
+SMS receivers  : {[r for r in result['receivers'] if re.search(r'(?i)sms', r)]}
+---
+
+Write exactly 3 short paragraphs:
+1. Overall verdict — is this malware? How confident are you?
+2. What is this app likely doing to the victim's device/banking?
+3. Recommended action (e.g. do not install, report to BNMLINK, submit to CyberSecurity Malaysia).
+
+Be direct and concise. No bullet points. No markdown headers."""
+
+        response = model.generate_content(prompt)
+        return response.text
+
+    except Exception as e:
+        return f"⚠️ AI summary failed: {str(e)}\n\nMake sure your Gemini API key is correct."
+
 # ─── PDF Generator ───────────────────────────────────────────────────────────────
 
-def generate_pdf(result):
+def generate_pdf(result, ai_summary=None):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
                             rightMargin=2*cm, leftMargin=2*cm,
@@ -116,12 +155,10 @@ def generate_pdf(result):
 
     risk_level, risk_color = get_risk_level(result["score"])
 
-    # Title
     story.append(Paragraph("APK Triage Report", styles["Title"]))
     story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"]))
     story.append(Spacer(1, 0.5*cm))
 
-    # Basic info table
     info_data = [
         ["Package",    result["package"]],
         ["Version",    result["version"]],
@@ -140,7 +177,15 @@ def generate_pdf(result):
     story.append(t)
     story.append(Spacer(1, 0.5*cm))
 
-    # Dangerous permissions
+    # AI Summary section in PDF
+    if ai_summary:
+        story.append(Paragraph("AI Analyst Verdict", styles["Heading2"]))
+        for para in ai_summary.strip().split("\n\n"):
+            if para.strip():
+                story.append(Paragraph(para.strip(), styles["Normal"]))
+                story.append(Spacer(1, 0.2*cm))
+        story.append(Spacer(1, 0.3*cm))
+
     story.append(Paragraph("Dangerous Permissions", styles["Heading2"]))
     danger_perms = [p for p in result["permissions"] if p in DANGEROUS_PERMISSIONS]
     if danger_perms:
@@ -152,7 +197,6 @@ def generate_pdf(result):
         story.append(Paragraph("None detected.", styles["Normal"]))
     story.append(Spacer(1, 0.4*cm))
 
-    # IoCs
     story.append(Paragraph("Indicators of Compromise (IoCs)", styles["Heading2"]))
     for label, items in [("Telegram tokens", result["telegrams"]),
                           ("Hardcoded IPs",   result["ips"]),
@@ -166,7 +210,6 @@ def generate_pdf(result):
             story.append(Paragraph("None found.", styles["Normal"]))
         story.append(Spacer(1, 0.2*cm))
 
-    # Components
     story.append(Paragraph("App Components", styles["Heading2"]))
     for label, items in [("Receivers",  result["receivers"]),
                           ("Services",   result["services"]),
@@ -192,6 +235,21 @@ st.title("🔍 APK Malware Triage Tool")
 st.caption("Automated static analysis for Malaysian financial scam APKs")
 st.divider()
 
+# ── Gemini API Key Input ─────────────────────────────────────────────────────────
+with st.sidebar:
+    st.header("⚙️ Settings")
+    gemini_api_key = st.text_input(
+        "Gemini API Key",
+        type="password",
+        placeholder="Paste your key from aistudio.google.com",
+        help="Free API key from aistudio.google.com — no credit card needed"
+    )
+    if gemini_api_key:
+        st.success("API key loaded ✓")
+    else:
+        st.info("Add your Gemini key to enable AI summaries.\nGet one free at aistudio.google.com")
+
+# ── File Upload ──────────────────────────────────────────────────────────────────
 uploaded_file = st.file_uploader("Upload an APK file", type=["apk"])
 
 if uploaded_file:
@@ -210,7 +268,7 @@ if uploaded_file:
 
     risk_level, risk_color = get_risk_level(result["score"])
 
-    # ── Risk gauge ──────────────────────────────────────────────────────────────
+    # ── Risk gauge ───────────────────────────────────────────────────────────────
     st.subheader("Risk Assessment")
     col1, col2, col3 = st.columns([1, 2, 1])
 
@@ -237,7 +295,20 @@ if uploaded_file:
 
     st.divider()
 
-    # ── Main panels ─────────────────────────────────────────────────────────────
+    # ── AI Verdict ───────────────────────────────────────────────────────────────
+    st.subheader("🤖 AI Analyst Verdict")
+
+    ai_summary = None
+    if gemini_api_key:
+        with st.spinner("Generating AI analysis..."):
+            ai_summary = generate_ai_summary(result, gemini_api_key)
+        st.info(ai_summary)
+    else:
+        st.warning("Add your Gemini API key in the sidebar to get an AI-powered verdict.")
+
+    st.divider()
+
+    # ── Main panels ──────────────────────────────────────────────────────────────
     left, right = st.columns(2)
 
     with left:
@@ -279,7 +350,7 @@ if uploaded_file:
 
     st.divider()
 
-    # ── Components ──────────────────────────────────────────────────────────────
+    # ── Components ───────────────────────────────────────────────────────────────
     st.subheader("⚙️ App Components")
     c1, c2, c3 = st.columns(3)
 
@@ -306,7 +377,7 @@ if uploaded_file:
 
     # ── PDF Download ─────────────────────────────────────────────────────────────
     st.subheader("📄 Export Report")
-    pdf_buffer = generate_pdf(result)
+    pdf_buffer = generate_pdf(result, ai_summary)
     st.download_button(
         label="Download PDF Report",
         data=pdf_buffer,
