@@ -1,0 +1,13 @@
+[server]
+enableCORS = false
+enableXsrfProtection = false
+ 
+[client]
+showErrorDetails = true
+ 
+[runner]
+# Allow HTML rendering in st.markdown() calls
+magicEnabled = true
+ 
+[theme]
+base = "dark"

@@ -11,6 +11,11 @@ from core.ai            import generate_ai_summary
 from core.pdf_report    import generate_pdf, sign_pdf_buffer
 from campaign.db        import init_db
 from campaign.store     import save_scan
+from utils.styles       import (
+    inject_css, section_header, status_pill, risk_badge,
+    ioc_badge, permission_card, divider_with_label,
+    ai_verdict_box, analysis_stepper,
+)
 
 # Ensure DB tables exist on every page load
 init_db()
@@ -30,7 +35,9 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title(" A-Analyzer - APK Triage Tool")
+inject_css()  # ← Apply global dark theme + IBM Plex typography
+
+st.title("A-Analyzer — APK Triage Tool")
 st.caption("Static analysis + Google Threat Intelligence enrichment for Malaysian financial scam APKs")
 st.divider()
 
@@ -41,6 +48,7 @@ with st.sidebar:
 
     # ── Analyst Identity
     st.subheader("🪪 Analyst Identity")
+    st.caption("Embedded in all exported files")
     analyst_name = st.text_input(
         "Your name / badge number",
         placeholder="e.g. Insp. Ahmad bin Ali  D/12345",
@@ -80,9 +88,9 @@ with st.sidebar:
         help="Get a free key at virustotal.com"
     )
     if vt_api_key:
-        st.success("GTI key loaded ✓")
+        status_pill("GTI key loaded", "ok")
     else:
-        st.info("Add your GTI/VT API key to enable threat intelligence enrichment.")
+        status_pill("No GTI key — enrichment disabled", "off")
 
     st.divider()
 
@@ -90,9 +98,9 @@ with st.sidebar:
     st.subheader("🤖 AI Settings")
     gemini_api_key = st.secrets.get("GEMINI_API_KEY", None)
     if gemini_api_key:
-        st.success("AI Analyst enabled ✓")
+        status_pill("AI Analyst enabled", "ok")
     else:
-        st.info("Contact your admin to enable AI-powered summaries.")
+        status_pill("AI not configured — contact admin", "off")
 
     st.divider()
     st.caption("📋 PDF reports include SHA-256 hash + digital signature for court-admissible chain of custody.")
@@ -109,6 +117,18 @@ if uploaded_file:
         tmp.write(uploaded_file.read())
         tmp_path = tmp.name
 
+    # 1. Create an empty container placeholder for the stepper
+    stepper_placeholder = st.empty()
+
+    # 2. Draw the initial state inside the placeholder
+    with stepper_placeholder:
+        analysis_stepper([
+            ("Static Analysis", "active"),
+            ("GTI Enrichment",  "pending"),
+            ("AI Verdict",      "pending"),
+            ("Saved",           "pending"),
+        ])
+
     # ── Static Analysis
     with st.spinner("Running static analysis..."):
         try:
@@ -121,6 +141,15 @@ if uploaded_file:
     # ── GTI Enrichment
     gti = None
     if vt_api_key:
+        # Overwrite the placeholder with the new state
+        with stepper_placeholder:
+            analysis_stepper([
+                ("Static Analysis", "done"),
+                ("GTI Enrichment",  "active"),
+                ("AI Verdict",      "pending"),
+                ("Saved",           "pending"),
+            ])
+            
         with st.spinner("Querying Google Threat Intelligence..."):
             gti = check_virustotal(tmp_path, result, vt_api_key)
             result["score"] += gti_score_boost(gti)
@@ -135,8 +164,18 @@ if uploaded_file:
             analyst_org=analyst_org,
             case_number=case_number,
             gti=gti,
-            ai_summary=None,   # AI runs after save; verdict stored on next scan
+            ai_summary=None,
         )
+
+    # Overwrite the placeholder
+    with stepper_placeholder:
+        analysis_stepper([
+            ("Static Analysis", "done"),
+            ("GTI Enrichment",  "done" if gti else "pending"),
+            ("AI Verdict",      "pending"),
+            ("Saved",           "done"),
+        ])
+
     if scan_id:
         st.success(f"✅ Saved to campaign database (Scan #{scan_id})")
     else:
@@ -145,9 +184,8 @@ if uploaded_file:
     risk_level, risk_color = get_risk_level(result["score"])
 
     # ── Risk Gauge
-    st.subheader("Risk Assessment")
-    col1, col2, col3 = st.columns([1, 2, 1])
-
+    divider_with_label("Risk Assessment")
+    col1, col2, col3 = st.columns([1.2, 2, 1.2])
     with col1:
         st.metric("Package", result["package"])
         st.metric("Version", result["version"])
@@ -175,27 +213,38 @@ if uploaded_file:
         st.metric("Min SDK",    result["min_sdk"])
         st.metric("Target SDK", result["target_sdk"])
 
-    # ── Evidence Integrity
-    st.divider()
+# ── Evidence Integrity
+    divider_with_label("Evidence Integrity")
     with st.expander("🔐 Evidence Integrity", expanded=True):
-        c1, c2 = st.columns([1, 2])
-        with c1:
-            st.markdown("**MD5**")
-            st.markdown("**SHA-1**")
-            st.markdown("**SHA-256**")
-            st.markdown("**Analyst**")
-            st.markdown("**Timestamp (UTC)**")
-        with c2:
-            st.code(result["md5"],    language=None)
-            st.code(result["sha1"],   language=None)
-            st.code(result["sha256"], language=None)
-            st.text(full_analyst.strip(" —") or "Not specified")
-            st.text(datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"))
+        # Define the row data structure: (Label, Value, IsCodeBlock)
+        integrity_data = [
+            ("MD5", result["md5"], True),
+            ("SHA-1", result["sha1"], True),
+            ("SHA-256", result["sha256"], True),
+            ("Analyst", full_analyst.strip(" —") or "Not specified", False),
+            ("Timestamp (UTC)", datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"), False),
+        ]
+
+        # Render each row independently to lock vertical alignment
+        for label, val, is_code in integrity_data:
+            row_c1, row_c2 = st.columns([1, 3], vertical_alignment="center")
+            
+            with row_c1:
+                st.markdown(f"**{label}**")
+                
+            with row_c2:
+                if is_code:
+                    st.code(val, language=None)
+                else:
+                    # Wrapped in a div with a tiny bit of padding to match visual baseline perfectly
+                    st.markdown(f"<div style='padding: 8px 0; font-size: 14px;'>{val}</div>", unsafe_allow_html=True)
+
+        st.write("") # Spacer
         st.caption("SHA-256 uniquely identifies this exact APK. Any modification changes the hash, detecting tampering.")
 
     # ── GTI Results
-    st.divider()
-    st.subheader("🌐 Google Threat Intelligence Results")
+    divider_with_label("Google Threat Intelligence")
+    section_header("GTI Results", "VirusTotal reputation enrichment")
 
     if gti:
         if gti.get("errors"):
@@ -229,11 +278,12 @@ if uploaded_file:
             st.markdown("**IP Address Reputation:**")
             for ip, data in gti["ips"].items():
                 if data:
+                    ioc_type = "ip"
                     flag = "🔴" if data["malicious"] > 0 else "🟢"
-                    st.markdown(
-                        f"{flag} `{ip}` — {data['malicious']}/{data['total']} detections | "
-                        f"{data.get('country', '?')} | {data.get('owner', '?')} "
-                        f"[VT ↗]({data['link']})"
+                    ioc_badge(
+                        f"{ip}  —  {data['malicious']}/{data['total']} detections  |  "
+                        f"{data.get('country', '?')}  |  {data.get('owner', '?')}",
+                        "ip"
                     )
                 else:
                     st.markdown(f"⚪ `{ip}` — Not found in GTI")
@@ -242,24 +292,40 @@ if uploaded_file:
             st.markdown("**URL Reputation:**")
             for url, data in gti["urls"].items():
                 if data:
-                    flag  = "🔴" if data["malicious"] > 0 else "🟢"
                     short = url[:60] + "..." if len(url) > 60 else url
-                    st.markdown(f"{flag} `{short}` — {data['malicious']}/{data['total']} detections")
+                    ioc_badge(f"{short}  —  {data['malicious']}/{data['total']} detections", "url")
                 else:
                     st.markdown(f"⚪ `{url[:60]}` — Not found in GTI")
     else:
-        st.warning("Add your **GTI / VirusTotal API key** in the sidebar to enable threat intelligence enrichment.")
+        status_pill("Add your GTI/VT API key in the sidebar to enable enrichment", "warn")
 
     # ── AI Verdict
-    st.divider()
-    st.subheader("🤖 AI Analyst Verdict")
+    divider_with_label("AI Analyst Verdict")
     ai_summary = None
     if gemini_api_key:
+        # Overwrite the placeholder
+        with stepper_placeholder:
+            analysis_stepper([
+                ("Static Analysis", "done"),
+                ("GTI Enrichment",  "done" if gti else "pending"),
+                ("AI Verdict",      "active"),
+                ("Saved",           "done"),
+            ])
+            
         with st.spinner("Generating AI analysis..."):
             ai_summary = generate_ai_summary(result, gemini_api_key, gti)
-        st.info(ai_summary)
+        ai_verdict_box(ai_summary)
+
+        # Final overwrite for the completed state
+        with stepper_placeholder:
+            analysis_stepper([
+                ("Static Analysis", "done"),
+                ("GTI Enrichment",  "done" if gti else "pending"),
+                ("AI Verdict",      "done"),
+                ("Saved",           "done"),
+            ])
     else:
-        st.warning("Contact your admin to enable AI-powered verdicts.")
+        status_pill("AI verdicts not configured — contact admin", "off")
 
     st.divider()
 
@@ -267,12 +333,12 @@ if uploaded_file:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("🛡️ Permissions")
+        section_header("Permissions", "Dangerous capabilities detected")
         danger_count = 0
         for perm in result["permissions"]:
             if perm in DANGEROUS_PERMISSIONS:
-                desc = DANGEROUS_PERMISSIONS[perm][0]
-                st.error(f"**{perm.split('.')[-1]}**\n\n{desc}")
+                desc, score = DANGEROUS_PERMISSIONS[perm]
+                permission_card(perm.split(".")[-1], desc, score)
                 danger_count += 1
             else:
                 st.text(f"  {perm.split('.')[-1]}")
@@ -280,30 +346,30 @@ if uploaded_file:
             st.success("No dangerous permissions found.")
 
     with right:
-        st.subheader("🎯 Indicators of Compromise")
+        section_header("Indicators of Compromise", "Extracted C2 and network IoCs")
 
         if result["telegrams"]:
             st.error("**Telegram C2 detected**")
             for t in result["telegrams"]:
-                st.code(t)
+                ioc_badge(t, "telegram")
 
         if result["ips"]:
             st.warning("**Hardcoded IP addresses**")
             for ip in result["ips"]:
-                gti_flag = ""
+                gti_suffix = ""
                 if gti and gti["ips"].get(ip):
                     m = gti["ips"][ip].get("malicious", 0)
-                    gti_flag = f"  🔴 GTI: {m} detections" if m > 0 else "  🟢 GTI: clean"
-                st.code(f"{ip}{gti_flag}")
+                    gti_suffix = f"  🔴 GTI: {m} detections" if m > 0 else "  🟢 GTI: clean"
+                ioc_badge(f"{ip}{gti_suffix}", "ip")
 
         if result["urls"]:
             with st.expander(f"URLs found ({len(result['urls'])})"):
                 for u in result["urls"]:
-                    gti_flag = ""
+                    gti_suffix = ""
                     if gti and gti["urls"].get(u):
                         m = gti["urls"][u].get("malicious", 0)
-                        gti_flag = f"  🔴 GTI: {m} detections" if m > 0 else "  🟢 GTI: clean"
-                    st.text(f"{u}{gti_flag}")
+                        gti_suffix = f"  🔴 GTI: {m} detections" if m > 0 else "  🟢 GTI: clean"
+                    ioc_badge(f"{u}{gti_suffix}", "url")
 
         if result["keywords"]:
             st.warning(f"**Banking keywords:** {', '.join(result['keywords'])}")
@@ -314,7 +380,7 @@ if uploaded_file:
     st.divider()
 
     # ── App Components
-    st.subheader("⚙️ App Components")
+    section_header("App Components", "Receivers, services, and activities declared in the manifest")
     c1, c2, c3 = st.columns(3)
 
     with c1:
@@ -339,10 +405,9 @@ if uploaded_file:
     st.divider()
 
     # ── Case Package Export
-    st.subheader("📦 Export Case Package")
+    section_header("Export Case Package", "Court-ready bundle for BNMLINK / Cyber999 / PDRM CCID")
     st.markdown(
-        "The **Case Package** bundles everything an investigator needs to open a case file "
-        "or submit to BNMLINK / Cyber999 / PDRM CCID — generated in one click."
+        "The **Case Package** bundles everything an investigator needs — generated in one click."
     )
 
     with st.expander("📋 What's inside the Case Package?", expanded=False):

@@ -1,14 +1,6 @@
 """
 pages/2_Campaigns.py
 Campaign Clustering UI — Feature 2.
-
-Shows:
-  - Header stats (total APKs, campaigns, critical, C2 counts)
-  - Campaign table grouped by shared C2 indicator
-  - Drilldown: click a campaign → see all linked APKs
-  - Network graph: APK nodes ↔ C2 nodes (pyvis HTML rendered in Streamlit)
-  - Timeline: all scans newest-first
-  - Analyst actions: rename campaign, delete scan
 """
 import json
 import datetime
@@ -26,21 +18,10 @@ from campaign.cluster import (
     rename_campaign,
     delete_scan,
 )
-with st.sidebar:
-    st.header("⚙️ Settings")
-    # ... existing sidebar content ...
-
-    # ── Add this at the bottom ─────────────────
-    st.divider()
-    with st.expander("⚠️ Danger Zone"):
-        if st.button("🗑️ Clear entire database", type="secondary"):
-            from campaign.db import get_connection
-            conn = get_connection()
-            conn.executescript("DELETE FROM c2_indicators; DELETE FROM campaigns; DELETE FROM apk_scans;")
-            conn.commit()
-            conn.close()
-            st.success("Database cleared.")
-            st.rerun()
+from utils.styles import (
+    inject_css, section_header, status_pill, risk_badge,
+    ioc_badge, divider_with_label,
+)
 
 # ── Ensure DB exists ──────────────────────────────────────────────────────────────
 init_db()
@@ -52,7 +33,22 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("A-Analyzer - Campaign Clustering")
+inject_css()  # ← Apply global dark theme + IBM Plex typography
+
+with st.sidebar:
+    st.header("⚙️ Settings")
+    st.divider()
+    with st.expander("⚠️ Danger Zone"):
+        if st.button("🗑️ Clear entire database", type="secondary"):
+            from campaign.db import get_connection
+            conn = get_connection()
+            conn.executescript("DELETE FROM c2_indicators; DELETE FROM campaigns; DELETE FROM apk_scans;")
+            conn.commit()
+            conn.close()
+            st.success("Database cleared.")
+            st.rerun()
+
+st.title("A-Analyzer — Campaign Clustering")
 st.caption("C2 fingerprinting — links APKs that share the same Telegram bot, IP, or URL infrastructure")
 st.divider()
 
@@ -89,7 +85,6 @@ tab_campaigns, tab_graph, tab_timeline = st.tabs([
 # ══════════════════════════════════════════════════════════════════════════════════
 with tab_campaigns:
 
-    # ── Filter bar ────────────────────────────────────────────────────────────────
     col_f1, col_f2 = st.columns([1, 3])
     with col_f1:
         filter_type = st.selectbox(
@@ -108,12 +103,12 @@ with tab_campaigns:
     if not campaigns:
         st.info("No campaigns match this filter.")
     else:
-        # ── Campaign table ─────────────────────────────────────────────────────────
         RISK_EMOJI = {
             "CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡",
             "LOW": "🟢", "CLEAN": "✅", "UNKNOWN": "⚪"
         }
-        C2_EMOJI = {"telegram": "📱", "ip": "🌐", "url": "🔗"}
+        C2_EMOJI   = {"telegram": "📱", "ip": "🌐", "url": "🔗"}
+        IOC_TYPE   = {"telegram": "telegram", "ip": "ip", "url": "url"}
 
         st.markdown(f"**{len(campaigns)} campaign(s) found**")
 
@@ -129,7 +124,8 @@ with tab_campaigns:
                 col_info, col_action = st.columns([3, 1])
 
                 with col_info:
-                    st.markdown(f"**Pivot ({camp['pivot_type'].upper()}):** `{camp['pivot_value']}`")
+                    # Styled pivot IoC badge
+                    ioc_badge(camp["pivot_value"], IOC_TYPE.get(camp["pivot_type"], ""))
                     st.markdown(
                         f"First seen: `{camp['first_seen'][:10]}`  |  "
                         f"Last seen: `{camp['last_seen'][:10]}`  |  "
@@ -169,7 +165,6 @@ with tab_campaigns:
                         hide_index=True,
                     )
 
-                    # Delete option
                     with st.expander("🗑️ Remove an APK from the database", expanded=False):
                         del_options = {f"{m['package']} ({m['sha256'][:12]}…)": m["id"] for m in members}
                         selected    = st.selectbox("Select APK to delete", list(del_options.keys()), key=f"del_{camp['id']}")
@@ -190,37 +185,31 @@ with tab_graph:
         apk_count_graph = sum(1 for n in graph_data["nodes"] if n["type"] == "apk")
         c2_count_graph  = sum(1 for n in graph_data["nodes"] if n["type"] == "c2")
 
-        st.markdown(
-            f"**{apk_count_graph} APK node(s)** connected to "
-            f"**{c2_count_graph} C2 node(s)** via **{len(graph_data['edges'])} edge(s)**"
-        )
+        st.subheader("APK ↔ C2 Network")
+        st.caption(f"{apk_count_graph} APK node(s) connected to {c2_count_graph} C2 node(s) via {len(graph_data['edges'])} edge(s)")
 
-        # Legend
-        leg1, leg2, leg3, leg4, leg5, leg6 = st.columns(6)
-        leg1.markdown("🔴 CRITICAL APK")
-        leg2.markdown("🟠 HIGH APK")
-        leg3.markdown("🟡 MEDIUM APK")
-        leg4.markdown("📱 Telegram C2")
-        leg5.markdown("🌐 IP C2")
-        leg6.markdown("🔗 URL C2")
+        # Legend pills
+        leg_cols = st.columns(6)
+        legends = [
+            ("🔴 CRITICAL APK",  "critical"),
+            ("🟠 HIGH APK",       "warn"),
+            ("🟡 MEDIUM APK",     "warn"),
+            ("📱 Telegram C2",    "ok"),
+            ("🌐 IP C2",          "ok"),
+            ("🔗 URL C2",         "ok"),
+        ]
+        for col, (label, _) in zip(leg_cols, legends):
+            with col:
+                st.markdown(f"<span style='font-size:12px;color:#7d8590'>{label}</span>", unsafe_allow_html=True)
 
-        # Build pyvis graph as self-contained HTML
-        nodes = graph_data["nodes"]
-        edges = graph_data["edges"]
-
+        nodes    = graph_data["nodes"]
+        edges    = graph_data["edges"]
         COLOR_MAP = {
-            "CRITICAL": "#e74c3c",
-            "HIGH":     "#e67e22",
-            "MEDIUM":   "#f39c12",
-            "LOW":      "#27ae60",
-            "CLEAN":    "#2ecc71",
-            "UNKNOWN":  "#95a5a6",
-            "telegram": "#2980b9",
-            "ip":       "#8e44ad",
-            "url":      "#16a085",
+            "CRITICAL": "#e74c3c", "HIGH": "#e67e22", "MEDIUM": "#f39c12",
+            "LOW": "#27ae60",      "CLEAN": "#2ecc71", "UNKNOWN": "#95a5a6",
+            "telegram": "#2980b9", "ip": "#8e44ad",   "url": "#16a085",
         }
 
-        # Serialise to JS-safe JSON
         nodes_js = json.dumps([{
             "id":    n["id"],
             "label": n["label"],
@@ -245,8 +234,8 @@ with tab_graph:
           <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.6/dist/vis-network.min.js"></script>
           <link  href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.6/dist/vis-network.min.css" rel="stylesheet"/>
           <style>
-            body {{ margin:0; background:#0e1117; }}
-            #graph {{ width:100%; height:580px; border:1px solid #2c3e50; border-radius:8px; }}
+            body {{ margin:0; background:#0d1117; }}
+            #graph {{ width:100%; height:580px; border:1px solid #30363d; border-radius:8px; }}
           </style>
         </head>
         <body>
@@ -306,22 +295,18 @@ with tab_timeline:
     if not timeline:
         st.info("No scans yet.")
     else:
-        st.markdown(f"**{len(timeline)} APK(s) in database**, newest first")
-
-        RISK_COLORS_CSS = {
-            "CRITICAL": "#e74c3c", "HIGH": "#e67e22", "MEDIUM": "#f39c12",
-            "LOW": "#27ae60", "CLEAN": "#2ecc71", "UNKNOWN": "#95a5a6",
-        }
+        st.subheader("Scan Timeline")
+        st.caption(f"{len(timeline)} APK(s) in database — newest first")
 
         rows = []
         for scan in timeline:
             rows.append({
-                "Risk Level":  scan["risk_level"],
-                "Score":       scan["risk_score"],
-                "Package":     scan["package"],
-                "GTI":         f"{scan['gti_malicious']}/{scan['gti_total']}" if scan["gti_total"] else "—",
-                "Threat Label":scan["gti_threat"] or "—",
-                "Analyst":     scan["analyst_name"] or "—",
+                "Risk Level":    scan["risk_level"],
+                "Score":         scan["risk_score"],
+                "Package":       scan["package"],
+                "GTI":           f"{scan['gti_malicious']}/{scan['gti_total']}" if scan["gti_total"] else "—",
+                "Threat Label":  scan["gti_threat"] or "—",
+                "Analyst":       scan["analyst_name"] or "—",
                 "Scanned (UTC)": scan["scanned_at"][:16].replace("T", " "),
             })
 
@@ -336,5 +321,4 @@ with tab_timeline:
                 ),
             }
         )
-
 

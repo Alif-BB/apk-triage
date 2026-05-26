@@ -1,6 +1,10 @@
+
 """
 utils/styles.py
 Global CSS injection and reusable HTML component helpers for APK Triage.
+
+Uses st.html() (Streamlit 1.31+) which is the supported way to inject
+raw HTML/CSS on Streamlit Cloud without being blocked.
 
 Usage in any page:
     from utils.styles import inject_css, section_header, status_pill, ioc_badge
@@ -69,7 +73,7 @@ html, body, [class*="css"] {
 }
 
 .block-container {
-  padding-top: 1.5rem !important;
+  padding-top: 5rem !important; /* ← FIXED: Increased from 1.5rem to 5rem to prevent header overlap */
   max-width: 1200px !important;
 }
 
@@ -95,14 +99,16 @@ h2 {
   font-weight: 500 !important;
   font-size: 1.1rem !important;
   color: var(--apk-text) !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
 }
 h3 {
   font-family: 'IBM Plex Sans', sans-serif !important;
   font-weight: 500 !important;
   font-size: 0.95rem !important;
   color: var(--apk-muted) !important;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none !important;
+  letter-spacing: normal !important;
 }
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
@@ -180,9 +186,15 @@ h3 {
 }
 [data-testid="stMetricValue"] {
   font-family: 'IBM Plex Mono', monospace !important;
-  font-size: 1.6rem !important;
+  font-size: 1.2rem !important; /* ← Reduced from 1.6rem to accommodate long text */
   font-weight: 600 !important;
   color: var(--apk-text) !important;
+}
+/* Force long package names to wrap instead of cutting off with ... */
+[data-testid="stMetricValue"] > div {
+  white-space: normal !important;
+  word-break: break-all !important;
+  line-height: 1.3 !important;
 }
 
 /* ── Expanders ───────────────────────────────────────────────────────── */
@@ -263,57 +275,61 @@ hr {
   color: var(--apk-muted) !important;
   font-size: 12px !important;
 }
+
+/* ── Page links ──────────────────────────────────────────────────────── */
+[data-testid="stPageLink"] a {
+  background-color: var(--apk-surface2) !important;
+  border: 1px solid var(--apk-border) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--apk-accent) !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 8px 16px !important;
+  transition: border-color 0.15s !important;
+  text-decoration: none !important;
+}
+[data-testid="stPageLink"] a:hover {
+  border-color: var(--apk-accent) !important;
+  background-color: rgba(88,166,255,0.08) !important;
+}
 </style>
 """
 
 
 def inject_css():
     """
+    Injects global dark theme CSS using st.html() — works on Streamlit Cloud.
     Call once per page, right after st.set_page_config().
-    Injects the global dark theme, IBM Plex typography, and component overrides.
     """
-    st.markdown(_CSS, unsafe_allow_html=True)
+    st.html(_CSS)
 
 
 # ─── Reusable HTML components ──────────────────────────────────────────────────
+# All components below use st.html() instead of st.markdown(unsafe_allow_html=True)
 
 def section_header(title: str, subtitle: str = ""):
-    """
-    Styled section heading with optional subtitle.
-    Replaces st.subheader() + st.caption() pairs.
-
-    Usage:
-        section_header("Permissions", "Dangerous capabilities detected in this APK")
-    """
     sub_html = (
-        f"<p style='color:#7d8590;font-size:13px;margin:2px 0 0;font-family:IBM Plex Sans,sans-serif'>"
-        f"{subtitle}</p>"
+        f"<p style='color:#7d8590;font-size:13px;margin:2px 0 0;"
+        f"font-family:IBM Plex Sans,sans-serif'>{subtitle}</p>"
     ) if subtitle else ""
-    st.markdown(f"""
+    st.html(f"""
     <div style='margin:1.5rem 0 0.75rem'>
       <h2 style='font-family:IBM Plex Sans,sans-serif;font-weight:600;font-size:1rem;
                  letter-spacing:0.01em;margin:0;color:#e6edf3'>{title}</h2>
       {sub_html}
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def status_pill(label: str, state: str = "ok"):
-    """
-    Coloured pill badge for sidebar status indicators.
-    state: "ok" | "warn" | "off"
-
-    Usage:
-        status_pill("GTI key loaded", "ok")
-        status_pill("AI not configured", "off")
-    """
     colours = {
         "ok":   ("rgba(46,204,113,0.12)",  "#2ecc71", "✓"),
         "warn": ("rgba(243,156,18,0.12)",  "#f39c12", "⚠"),
         "off":  ("rgba(149,165,166,0.12)", "#95a5a6", "○"),
     }
     bg, fg, icon = colours.get(state, colours["off"])
-    st.markdown(f"""
+    st.html(f"""
     <div style='display:inline-flex;align-items:center;gap:6px;
                 padding:4px 10px;border-radius:20px;
                 background:{bg};border:1px solid {fg}44;
@@ -321,40 +337,26 @@ def status_pill(label: str, state: str = "ok"):
                 font-family:IBM Plex Sans,sans-serif;margin:4px 0'>
       <span>{icon}</span><span>{label}</span>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def risk_badge(risk_level: str):
-    """
-    Inline risk level badge.
-
-    Usage:
-        risk_badge("CRITICAL")
-    """
     colour = RISK_COLOURS.get(risk_level, "#95a5a6")
-    st.markdown(f"""
+    st.html(f"""
     <span style='display:inline-block;padding:3px 10px;border-radius:20px;
                  background:{colour}22;border:1px solid {colour}55;
                  color:{colour};font-size:11px;font-weight:600;
                  font-family:IBM Plex Mono,monospace;letter-spacing:0.05em'>
       {risk_level}
     </span>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def ioc_badge(value: str, ioc_type: str = ""):
-    """
-    Styled IoC row with a copy-to-clipboard button.
-    ioc_type: "telegram" | "ip" | "url" | ""
-
-    Usage:
-        ioc_badge("t.me/somebot", "telegram")
-        ioc_badge("103.44.120.5", "ip")
-    """
-    colour    = C2_COLOURS.get(ioc_type, "#58a6ff")
-    label     = {"telegram": "TG", "ip": "IP", "url": "URL"}.get(ioc_type, "IOC")
-    safe_val  = value.replace("'", "\\'").replace('"', '&quot;')
-    st.markdown(f"""
+    colour   = C2_COLOURS.get(ioc_type, "#58a6ff")
+    label    = {"telegram": "TG", "ip": "IP", "url": "URL"}.get(ioc_type, "IOC")
+    safe_val = value.replace("'", "\\'").replace('"', '&quot;')
+    st.html(f"""
     <div style='display:flex;align-items:center;gap:8px;
                 padding:7px 12px;margin:4px 0;
                 background:#161b22;border:1px solid #30363d;
@@ -371,17 +373,10 @@ def ioc_badge(value: str, ioc_type: str = ""):
                      transition:color 0.15s;flex-shrink:0'
               title='Copy to clipboard'>⎘</button>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def permission_card(perm_name: str, description: str, score: int):
-    """
-    Compact permission card replacing st.error() blocks.
-    Shows severity-coloured left border and score badge.
-
-    Usage:
-        permission_card("RECEIVE_SMS", "Intercepts incoming SMS — steals TAC/OTP", 50)
-    """
     if score >= 30:
         colour, severity = "#e74c3c", "HIGH"
     elif score >= 20:
@@ -389,7 +384,7 @@ def permission_card(perm_name: str, description: str, score: int):
     else:
         colour, severity = "#f39c12", "LOW"
 
-    st.markdown(f"""
+    st.html(f"""
     <div style='display:flex;align-items:flex-start;gap:12px;
                 padding:10px 14px;margin:5px 0;
                 background:#161b22;border:1px solid #30363d;
@@ -405,17 +400,11 @@ def permission_card(perm_name: str, description: str, score: int):
                    background:{colour}22;color:{colour};
                    font-family:IBM Plex Mono,monospace'>{severity} +{score}</span>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def divider_with_label(label: str):
-    """
-    Labelled section divider, replaces st.divider().
-
-    Usage:
-        divider_with_label("Evidence Integrity")
-    """
-    st.markdown(f"""
+    st.html(f"""
     <div style='display:flex;align-items:center;gap:12px;margin:1.5rem 0 1rem'>
       <div style='flex:1;height:1px;background:#30363d'></div>
       <span style='font-size:10px;font-weight:600;color:#7d8590;
@@ -423,23 +412,17 @@ def divider_with_label(label: str):
                    font-family:IBM Plex Sans,sans-serif;white-space:nowrap'>{label}</span>
       <div style='flex:1;height:1px;background:#30363d'></div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def ai_verdict_box(summary: str):
-    """
-    Renders the AI analyst verdict in a clearly-labelled amber callout box.
-
-    Usage:
-        ai_verdict_box(ai_summary_text)
-    """
     paragraphs = [p.strip() for p in summary.strip().split("\n\n") if p.strip()]
     paras_html = "".join(
         f"<p style='margin:0 0 10px;line-height:1.7;font-size:13px;"
         f"color:#c9d1d9;font-family:IBM Plex Sans,sans-serif'>{p}</p>"
         for p in paragraphs
     )
-    st.markdown(f"""
+    st.html(f"""
     <div style='background:#161b22;border:1px solid #30363d;
                 border-left:3px solid #f39c12;border-radius:8px;
                 padding:16px 18px;margin:8px 0'>
@@ -453,22 +436,10 @@ def ai_verdict_box(summary: str):
       </div>
       {paras_html}
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def analysis_stepper(steps: list):
-    """
-    Horizontal step progress indicator.
-    steps: list of (label, state) — state is "done" | "active" | "pending"
-
-    Usage:
-        analysis_stepper([
-            ("Static Analysis", "done"),
-            ("GTI Enrichment",  "done"),
-            ("AI Verdict",      "active"),
-            ("Saved",           "pending"),
-        ])
-    """
     parts = []
     for i, (label, state) in enumerate(steps):
         if state == "done":
@@ -498,8 +469,9 @@ def analysis_stepper(steps: list):
         </div>
         """)
 
-    st.markdown(f"""
+    st.html(f"""
     <div style='display:flex;align-items:flex-start;padding:14px 0;margin:8px 0'>
       {''.join(parts)}
     </div>
-    """, unsafe_allow_html=True)
+    """)
+
