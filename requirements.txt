@@ -1,1 +1,10 @@
+streamlit
+androguard
+vt-py
+google-generativeai
+loguru
+reportlab
+pyhanko
+pyhanko-certvalidator
+cryptography
 pandas
