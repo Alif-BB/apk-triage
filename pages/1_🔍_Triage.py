@@ -5,7 +5,7 @@ import datetime
 import tempfile
 import streamlit as st
 
-from core.analyser      import analyse_apk, get_risk_level, DANGEROUS_PERMISSIONS
+from core.analyser      import analyse_apk, get_risk_level, get_likelihood, DANGEROUS_PERMISSIONS
 from core.gti           import check_virustotal, gti_score_boost
 from core.ai            import generate_ai_summary
 from core.pdf_report    import generate_pdf, sign_pdf_buffer
@@ -30,7 +30,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🔍 APK Malware Triage Tool")
+st.title(" A-Analyzer - APK Triage Tool")
 st.caption("Static analysis + Google Threat Intelligence enrichment for Malaysian financial scam APKs")
 st.divider()
 
@@ -153,12 +153,15 @@ if uploaded_file:
         st.metric("Version", result["version"])
 
     with col2:
+        likelihood = get_likelihood(result["score"])
         st.markdown(
             f"""
             <div style='text-align:center; padding:20px; border-radius:12px;
                         background-color:{risk_color}22; border:2px solid {risk_color}'>
                 <div style='font-size:48px; font-weight:bold; color:{risk_color}'>{risk_level}</div>
-                <div style='font-size:28px; color:{risk_color}'>Score: {result["score"]}</div>
+                <div style='font-size:32px; font-weight:bold; color:{risk_color}'>{likelihood}%</div>
+                <div style='font-size:13px; color:#aaa; margin-top:2px'>likelihood of malicious behaviour</div>
+                <div style='font-size:11px; color:#666; margin-top:6px'>raw score: {result["score"]} / 300</div>
                 <div style='font-size:13px; color:#888; margin-top:6px'>
                     {"✅ GTI enriched" if gti else "⚪ Static analysis only"}
                 </div>
@@ -166,7 +169,7 @@ if uploaded_file:
             """,
             unsafe_allow_html=True
         )
-        st.progress(min(result["score"], 100) / 100)
+        st.progress(likelihood / 100)
 
     with col3:
         st.metric("Min SDK",    result["min_sdk"])

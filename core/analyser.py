@@ -159,16 +159,53 @@ DANGEROUS_PERMISSIONS = {
 }
 
 
-# ─── Risk Level ───────────────────────────────────────────────────────────────────
+# ─── Risk Scoring ─────────────────────────────────────────────────────────────────
+#
+# SCORE_CEILING is the practical worst-case raw score for a Malaysian banking
+# scam APK — used to normalise the raw score to a 0–100% likelihood value.
+#
+# Worst-case breakdown:
+#   All 11 dangerous permissions          = 265 pts
+#   SMS receiver                          =  25 pts
+#   1 Telegram C2 token                   =  40 pts
+#   1 hardcoded IP                        =  20 pts
+#   Banking keywords                      =  10 pts
+#   GTI: >20 AV engines flagged           =  50 pts
+#   ─────────────────────────────────────   ───────
+#   Theoretical max                       = 410 pts
+#
+# We use 300 as the ceiling — at this point the APK is unambiguously CRITICAL.
+# Anything beyond 300 still clamps to 100%.
 
-def get_risk_level(score):
-    if score == 0:
+SCORE_CEILING = 300
+
+
+def get_likelihood(score: int) -> int:
+    """
+    Converts a raw risk score to a 0–100% malicious likelihood value.
+    Clamped so it never exceeds 100% regardless of how high the raw score goes.
+    """
+    return min(round((score / SCORE_CEILING) * 100), 100)
+
+
+def get_risk_level(score: int) -> tuple[str, str]:
+    """
+    Returns (label, hex_colour) based on the normalised likelihood percentage.
+    Thresholds:
+      0%          → CLEAN
+      1–19%       → LOW
+      20–44%      → MEDIUM
+      45–74%      → HIGH
+      75–100%     → CRITICAL
+    """
+    pct = get_likelihood(score)
+    if pct == 0:
         return "CLEAN",    "#2ecc71"
-    elif score < 30:
+    elif pct < 20:
         return "LOW",      "#27ae60"
-    elif score < 60:
+    elif pct < 45:
         return "MEDIUM",   "#f39c12"
-    elif score < 90:
+    elif pct < 75:
         return "HIGH",     "#e67e22"
     else:
         return "CRITICAL", "#e74c3c"
@@ -248,6 +285,7 @@ def analyse_apk(filepath):
         "telegrams":   telegrams,
         "keywords":    set(k.upper() for k in keywords),
         "score":       score,
+        "likelihood":  get_likelihood(score),
         "md5":         md5,
         "sha1":        sha1,
         "sha256":      sha256,

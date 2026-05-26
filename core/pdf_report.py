@@ -20,7 +20,7 @@ from pyhanko.sign import signers, fields
 from pyhanko.pdf_utils import incremental_writer
 from pyhanko.sign.fields import SigFieldSpec
 
-from core.analyser import DANGEROUS_PERMISSIONS, get_risk_level
+from core.analyser import DANGEROUS_PERMISSIONS, get_risk_level, get_likelihood
 
 CERT_PATH = os.path.join(os.path.expanduser("~"), ".apktriage_signer.p12")
 CERT_PASS = b"apktriage_internal"
@@ -101,7 +101,8 @@ def generate_pdf(result, analyst_name, ai_summary=None, gti=None):
         ["Version",    result["version"]],
         ["Min SDK",    result["min_sdk"]],
         ["Target SDK", result["target_sdk"]],
-        ["Risk Score", str(result["score"])],
+        ["Risk Score", f"{result['score']} / 300 (raw)"],
+        ["Likelihood", f"{result.get('likelihood', get_likelihood(result['score']))}% malicious"],
         ["Risk Level", risk_level],
     ]
     t = Table(info_data, colWidths=[4*cm, 13*cm])

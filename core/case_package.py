@@ -6,7 +6,7 @@ import datetime
 import io
 from io import BytesIO
 
-from core.analyser import DANGEROUS_PERMISSIONS, get_risk_level
+from core.analyser import DANGEROUS_PERMISSIONS, get_risk_level, get_likelihood
 from core.pdf_report import generate_pdf, sign_pdf_buffer
 
 
@@ -61,8 +61,10 @@ def generate_case_json(result, analyst_name, analyst_org, case_number, classific
             "target_sdk": result["target_sdk"],
         },
         "risk_assessment": {
-            "score": result["score"],
-            "level": risk_level,
+            "score":      result["score"],
+            "likelihood": result.get("likelihood", get_likelihood(result["score"])),
+            "likelihood_label": f"{result.get('likelihood', get_likelihood(result['score']))}% probability of malicious behaviour",
+            "level":      risk_level,
         },
         "dangerous_permissions": [
             {"permission": p, "description": DANGEROUS_PERMISSIONS[p][0], "score": DANGEROUS_PERMISSIONS[p][1]}
@@ -122,7 +124,7 @@ def generate_bnmlink_template(result, analyst_name, analyst_org, case_number, cl
         "",
         "── INCIDENT SUMMARY ────────────────────────────────────────────────────",
         f"  Incident Type    : Malicious Android APK — Mobile Banking Fraud",
-        f"  Risk Level       : {risk_level}  (Score: {result['score']})",
+        f"  Risk Level       : {risk_level}  ({result.get('likelihood', get_likelihood(result['score']))}% likelihood of malicious behaviour)",
         f"  APK Package Name : {result['package']}",
         f"  APK Version      : {result['version']}",
         "",

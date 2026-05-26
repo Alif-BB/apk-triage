@@ -26,6 +26,21 @@ from campaign.cluster import (
     rename_campaign,
     delete_scan,
 )
+with st.sidebar:
+    st.header("⚙️ Settings")
+    # ... existing sidebar content ...
+
+    # ── Add this at the bottom ─────────────────
+    st.divider()
+    with st.expander("⚠️ Danger Zone"):
+        if st.button("🗑️ Clear entire database", type="secondary"):
+            from campaign.db import get_connection
+            conn = get_connection()
+            conn.executescript("DELETE FROM c2_indicators; DELETE FROM campaigns; DELETE FROM apk_scans;")
+            conn.commit()
+            conn.close()
+            st.success("Database cleared.")
+            st.rerun()
 
 # ── Ensure DB exists ──────────────────────────────────────────────────────────────
 init_db()
@@ -37,7 +52,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🕸️ Campaign Clustering")
+st.title("A-Analyzer - Campaign Clustering")
 st.caption("C2 fingerprinting — links APKs that share the same Telegram bot, IP, or URL infrastructure")
 st.divider()
 
@@ -321,3 +336,5 @@ with tab_timeline:
                 ),
             }
         )
+
+

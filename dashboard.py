@@ -13,8 +13,8 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🔍 APK Malware Triage Tool")
-st.caption("Malaysian financial scam APK analysis — Static analysis · GTI enrichment · Campaign clustering")
+st.title("A-Analyzer")
+st.caption("Static analysis · GTI enrichment · Campaign clustering")
 st.divider()
 
 col1, col2 = st.columns(2)
