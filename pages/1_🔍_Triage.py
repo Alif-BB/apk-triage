@@ -17,7 +17,6 @@ from utils.styles       import (
     ai_verdict_box, analysis_stepper,
 )
 
-# Ensure DB tables exist on every page load
 init_db()
 
 from core.case_package  import (
@@ -30,15 +29,15 @@ from core.case_package  import (
 # ─── Page Config ─────────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="APK Triage  |  Powered by GTI",
+    page_title="APK Triage  |  Powered by VirusTotal",
     page_icon="🔍",
     layout="wide"
 )
 
-inject_css()  # ← Apply global dark theme + IBM Plex typography
+inject_css()
 
 st.title("A-Analyzer — APK Triage Tool")
-st.caption("Static analysis + Google Threat Intelligence enrichment for Malaysian financial scam APKs")
+st.caption("Static analysis + VirusTotal enrichment for Malaysian financial scam APKs")
 st.divider()
 
 # ─── Sidebar ─────────────────────────────────────────────────────────────────────
@@ -77,20 +76,34 @@ with st.sidebar:
         help="Classification marking applied to all exported documents"
     )
 
+    # ── TLP Classification  ← NEW
+    tlp = st.selectbox(
+        "TLP Classification",
+        ["GREEN", "WHITE", "AMBER", "RED"],
+        index=0,
+        help=(
+            "Traffic Light Protocol — controls how recipients may share this report.\n\n"
+            "WHITE  = unrestricted public sharing\n"
+            "GREEN  = share within the community (default for inter-agency)\n"
+            "AMBER  = share on need-to-know basis only\n"
+            "RED    = do not share outside named recipients"
+        )
+    )
+
     st.divider()
 
-    # ── GTI / VirusTotal
-    st.subheader("🌐 Google Threat Intelligence")
+    # ── VirusTotal
+    st.subheader("🌐 VirusTotal")
     vt_api_key = st.secrets.get("VT_API_KEY", None) or st.text_input(
-        "GTI / VirusTotal API Key",
+        "VirusTotal API Key",
         type="password",
         placeholder="Paste your VT API key",
         help="Get a free key at virustotal.com"
     )
     if vt_api_key:
-        status_pill("GTI key loaded", "ok")
+        status_pill("VirusTotal key loaded", "ok")
     else:
-        status_pill("No GTI key — enrichment disabled", "off")
+        status_pill("No VirusTotal key — enrichment disabled", "off")
 
     st.divider()
 
@@ -117,14 +130,12 @@ if uploaded_file:
         tmp.write(uploaded_file.read())
         tmp_path = tmp.name
 
-    # 1. Create an empty container placeholder for the stepper
     stepper_placeholder = st.empty()
 
-    # 2. Draw the initial state inside the placeholder
     with stepper_placeholder:
         analysis_stepper([
             ("Static Analysis", "active"),
-            ("GTI Enrichment",  "pending"),
+            ("VirusTotal Enrichment",  "pending"),
             ("AI Verdict",      "pending"),
             ("Saved",           "pending"),
         ])
@@ -138,19 +149,17 @@ if uploaded_file:
             os.unlink(tmp_path)
             st.stop()
 
-    # ── GTI Enrichment
+    # ── VirusTotal Enrichment
     gti = None
     if vt_api_key:
-        # Overwrite the placeholder with the new state
         with stepper_placeholder:
             analysis_stepper([
                 ("Static Analysis", "done"),
-                ("GTI Enrichment",  "active"),
+                ("VirusTotal Enrichment",  "active"),
                 ("AI Verdict",      "pending"),
                 ("Saved",           "pending"),
             ])
-            
-        with st.spinner("Querying Google Threat Intelligence..."):
+        with st.spinner("Querying VirusTotal..."):
             gti = check_virustotal(tmp_path, result, vt_api_key)
             result["score"] += gti_score_boost(gti)
 
@@ -167,11 +176,10 @@ if uploaded_file:
             ai_summary=None,
         )
 
-    # Overwrite the placeholder
     with stepper_placeholder:
         analysis_stepper([
             ("Static Analysis", "done"),
-            ("GTI Enrichment",  "done" if gti else "pending"),
+            ("VirusTotal Enrichment",  "done" if gti else "pending"),
             ("AI Verdict",      "pending"),
             ("Saved",           "done"),
         ])
@@ -201,7 +209,7 @@ if uploaded_file:
                 <div style='font-size:13px; color:#aaa; margin-top:2px'>likelihood of malicious behaviour</div>
                 <div style='font-size:11px; color:#666; margin-top:6px'>raw score: {result["score"]} / 300</div>
                 <div style='font-size:13px; color:#888; margin-top:6px'>
-                    {"✅ GTI enriched" if gti else "⚪ Static analysis only"}
+                    {"✅ VirusTotal enriched" if gti else "⚪ Static analysis only"}
                 </div>
             </div>
             """,
@@ -213,10 +221,9 @@ if uploaded_file:
         st.metric("Min SDK",    result["min_sdk"])
         st.metric("Target SDK", result["target_sdk"])
 
-# ── Evidence Integrity
+    # ── Evidence Integrity
     divider_with_label("Evidence Integrity")
     with st.expander("🔐 Evidence Integrity", expanded=True):
-        # Define the row data structure: (Label, Value, IsCodeBlock)
         integrity_data = [
             ("MD5", result["md5"], True),
             ("SHA-1", result["sha1"], True),
@@ -225,26 +232,22 @@ if uploaded_file:
             ("Timestamp (UTC)", datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"), False),
         ]
 
-        # Render each row independently to lock vertical alignment
         for label, val, is_code in integrity_data:
             row_c1, row_c2 = st.columns([1, 3], vertical_alignment="center")
-            
             with row_c1:
                 st.markdown(f"**{label}**")
-                
             with row_c2:
                 if is_code:
                     st.code(val, language=None)
                 else:
-                    # Wrapped in a div with a tiny bit of padding to match visual baseline perfectly
                     st.markdown(f"<div style='padding: 8px 0; font-size: 14px;'>{val}</div>", unsafe_allow_html=True)
 
-        st.write("") # Spacer
+        st.write("")
         st.caption("SHA-256 uniquely identifies this exact APK. Any modification changes the hash, detecting tampering.")
 
-    # ── GTI Results
-    divider_with_label("Google Threat Intelligence")
-    section_header("GTI Results", "VirusTotal reputation enrichment")
+    # ── VirusTotal Results
+    divider_with_label("VirusTotal")
+    section_header("VirusTotal Results", "Hash, IP, and URL reputation enrichment")
 
     if gti:
         if gti.get("errors"):
@@ -278,15 +281,13 @@ if uploaded_file:
             st.markdown("**IP Address Reputation:**")
             for ip, data in gti["ips"].items():
                 if data:
-                    ioc_type = "ip"
-                    flag = "🔴" if data["malicious"] > 0 else "🟢"
                     ioc_badge(
                         f"{ip}  —  {data['malicious']}/{data['total']} detections  |  "
                         f"{data.get('country', '?')}  |  {data.get('owner', '?')}",
                         "ip"
                     )
                 else:
-                    st.markdown(f"⚪ `{ip}` — Not found in GTI")
+                    st.markdown(f"⚪ `{ip}` — Not found in VirusTotal")
 
         if gti.get("urls"):
             st.markdown("**URL Reputation:**")
@@ -295,32 +296,29 @@ if uploaded_file:
                     short = url[:60] + "..." if len(url) > 60 else url
                     ioc_badge(f"{short}  —  {data['malicious']}/{data['total']} detections", "url")
                 else:
-                    st.markdown(f"⚪ `{url[:60]}` — Not found in GTI")
+                    st.markdown(f"⚪ `{url[:60]}` — Not found in VirusTotal")
     else:
-        status_pill("Add your GTI/VT API key in the sidebar to enable enrichment", "warn")
+        status_pill("Add your VirusTotal API key in the sidebar to enable enrichment", "warn")
 
     # ── AI Verdict
     divider_with_label("AI Analyst Verdict")
     ai_summary = None
     if gemini_api_key:
-        # Overwrite the placeholder
         with stepper_placeholder:
             analysis_stepper([
                 ("Static Analysis", "done"),
-                ("GTI Enrichment",  "done" if gti else "pending"),
+                ("VirusTotal Enrichment",  "done" if gti else "pending"),
                 ("AI Verdict",      "active"),
                 ("Saved",           "done"),
             ])
-            
         with st.spinner("Generating AI analysis..."):
             ai_summary = generate_ai_summary(result, gemini_api_key, gti)
         ai_verdict_box(ai_summary)
 
-        # Final overwrite for the completed state
         with stepper_placeholder:
             analysis_stepper([
                 ("Static Analysis", "done"),
-                ("GTI Enrichment",  "done" if gti else "pending"),
+                ("VirusTotal Enrichment",  "done" if gti else "pending"),
                 ("AI Verdict",      "done"),
                 ("Saved",           "done"),
             ])
@@ -349,26 +347,26 @@ if uploaded_file:
         section_header("Indicators of Compromise", "Extracted C2 and network IoCs")
 
         if result["telegrams"]:
-            st.error("**Telegram C2 detected**")
+            st.error("**Telegram C2 detected**  `confidence: HIGH`")
             for t in result["telegrams"]:
                 ioc_badge(t, "telegram")
 
         if result["ips"]:
-            st.warning("**Hardcoded IP addresses**")
+            st.warning("**Hardcoded IP addresses**  `confidence: MEDIUM`")
             for ip in result["ips"]:
                 gti_suffix = ""
                 if gti and gti["ips"].get(ip):
                     m = gti["ips"][ip].get("malicious", 0)
-                    gti_suffix = f"  🔴 GTI: {m} detections" if m > 0 else "  🟢 GTI: clean"
+                    gti_suffix = f"  🔴 VirusTotal: {m} detections" if m > 0 else "  🟢 VirusTotal: clean"
                 ioc_badge(f"{ip}{gti_suffix}", "ip")
 
         if result["urls"]:
-            with st.expander(f"URLs found ({len(result['urls'])})"):
+            with st.expander(f"URLs found ({len(result['urls'])})  `confidence: LOW`"):
                 for u in result["urls"]:
                     gti_suffix = ""
                     if gti and gti["urls"].get(u):
                         m = gti["urls"][u].get("malicious", 0)
-                        gti_suffix = f"  🔴 GTI: {m} detections" if m > 0 else "  🟢 GTI: clean"
+                        gti_suffix = f"  🔴 VirusTotal: {m} detections" if m > 0 else "  🟢 VirusTotal: clean"
                     ioc_badge(f"{u}{gti_suffix}", "url")
 
         if result["keywords"]:
@@ -414,10 +412,10 @@ if uploaded_file:
         st.markdown("""
 | File | Purpose |
 |------|---------|
-| `triage_report_*_signed.pdf` | Court-ready forensic report with digital signature |
-| `evidence_*.json` | Machine-readable evidence for SIEM / case management |
-| `incident_report_template_*.txt` | Pre-filled submission for BNMLINK / Cyber999 / PDRM |
-| `chain_of_custody_*.csv` | Timestamped chain-of-custody log |
+| `triage_report_*_signed.pdf` | Court-ready forensic report with digital signature + analysis environment |
+| `evidence_*.json` | Machine-readable evidence with TLP marking + IoC confidence levels |
+| `incident_report_template_*.txt` | Pre-filled submission — victim fields at top, NSRC 997 as step 1 |
+| `chain_of_custody_*.csv` | Timestamped chain-of-custody log with handover rows |
 | `README.txt` | Submission contacts and file guide |
         """)
 
@@ -427,18 +425,38 @@ if uploaded_file:
         "SECRET":       "#8e44ad",
         "UNCLASSIFIED": "#27ae60",
     }
+    TLP_COLORS = {
+        "WHITE": "#ecf0f1",
+        "GREEN": "#27ae60",
+        "AMBER": "#f39c12",
+        "RED":   "#e74c3c",
+    }
     cls_color = CLASS_COLORS.get(classification, "#888")
-    st.markdown(
-        f"<div style='text-align:center; padding:8px; border-radius:6px; "
-        f"background:{cls_color}22; border:1.5px solid {cls_color}; "
-        f"color:{cls_color}; font-weight:bold; font-size:15px; letter-spacing:2px'>"
-        f"⚠ {classification}</div>",
-        unsafe_allow_html=True
-    )
+    tlp_color = TLP_COLORS.get(tlp, "#888")
+
+    badge_col1, badge_col2 = st.columns(2)
+    with badge_col1:
+        st.markdown(
+            f"<div style='text-align:center; padding:8px; border-radius:6px; "
+            f"background:{cls_color}22; border:1.5px solid {cls_color}; "
+            f"color:{cls_color}; font-weight:bold; font-size:15px; letter-spacing:2px'>"
+            f"⚠ {classification}</div>",
+            unsafe_allow_html=True
+        )
+    with badge_col2:
+        st.markdown(
+            f"<div style='text-align:center; padding:8px; border-radius:6px; "
+            f"background:{tlp_color}22; border:1.5px solid {tlp_color}; "
+            f"color:{tlp_color}; font-weight:bold; font-size:15px; letter-spacing:2px'>"
+            f"🔵 TLP:{tlp}</div>",
+            unsafe_allow_html=True
+        )
+
     st.caption(f"Case Ref: **{case_number or 'UNASSIGNED'}** — set in sidebar")
     st.markdown("")
 
-    filename_base = f"triage_{re.sub(r'[^\\w.]', '_', result['package'])}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    safe_pkg = re.sub(r'[^\w.]', '_', result['package'])
+    filename_base = f"triage_{safe_pkg}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     col_a, col_b, col_c = st.columns(3)
 
     with col_a:
@@ -448,7 +466,7 @@ if uploaded_file:
             try:
                 case_zip = generate_case_package(
                     result, analyst_name, analyst_org,
-                    case_number, classification, gti, ai_summary
+                    case_number, classification, gti, ai_summary, tlp  # ← tlp passed through
                 )
                 st.download_button(
                     label="⬇️ Download Case Package (.zip)",
@@ -474,10 +492,10 @@ if uploaded_file:
 
     with col_c:
         st.markdown("#### 🗂 JSON Evidence File")
-        st.caption("Machine-readable — for SIEM, case management, or inter-agency sharing")
+        st.caption("Machine-readable — includes TLP marking + IoC confidence levels")
         evidence_json = generate_case_json(
             result, analyst_name, analyst_org,
-            case_number, classification, gti, ai_summary
+            case_number, classification, gti, ai_summary, tlp  # ← tlp passed through
         )
         st.download_button(
             label="⬇️ Download evidence.json",
@@ -491,7 +509,7 @@ if uploaded_file:
 
     with st.expander("📝 Preview: BNMLINK / Cyber999 Incident Report Template", expanded=False):
         template_text = generate_bnmlink_template(
-            result, analyst_name, analyst_org, case_number, classification, gti
+            result, analyst_name, analyst_org, case_number, classification, gti, tlp
         )
         st.text(template_text)
         st.download_button(

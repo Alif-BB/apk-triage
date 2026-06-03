@@ -19,9 +19,9 @@ inject_css()
 
 # ─── Hero ─────────────────────────────────────────────────────────────────────────
 
-st.markdown("MALAYSIAN FINANCIAL FRAUD INTELLIGENCE")
+st.markdown("MALAYSIAN APK MALWARE INTELLIGENCE")
 st.title("A-Analyzer")
-st.markdown("Static Analysis · GTI Enrichment · Campaign Clustering")
+st.markdown("Static Analysis · VirusTotal Enrichment · Campaign Clustering")
 st.markdown("`PDRM` &nbsp; `BNM` &nbsp; `CyberSecurity Malaysia`")
 
 st.divider()

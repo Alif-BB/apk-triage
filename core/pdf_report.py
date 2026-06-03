@@ -1,4 +1,5 @@
 import os
+import platform
 import asyncio
 import datetime
 from io import BytesIO
@@ -77,6 +78,35 @@ def sign_pdf_buffer(unsigned_buffer: BytesIO, analyst_name: str) -> BytesIO:
     return BytesIO(signed_bytes)
 
 
+def _get_androguard_version() -> str:
+    """Safely retrieve the installed androguard version string."""
+    try:
+        import importlib.metadata
+        return importlib.metadata.version("androguard")
+    except Exception:
+        try:
+            import androguard
+            return getattr(androguard, "__version__", "unknown")
+        except Exception:
+            return "unknown"
+
+
+def get_analysis_environment() -> dict:
+    """
+    Collects runtime environment details required for s.90A Evidence Act 1950
+    compliance — the court needs to know exactly what produced this report.
+    """
+    return {
+        "tool":             "APK Triage v1.0",
+        "python_version":   platform.python_version(),
+        "androguard":       _get_androguard_version(),
+        "os":               f"{platform.system()} {platform.release()}",
+        "hostname":         platform.node(),
+        "architecture":     platform.machine(),
+        "generated_at_utc": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+    }
+
+
 def generate_pdf(result, analyst_name, ai_summary=None, gti=None):
     buffer = BytesIO()
     doc    = SimpleDocTemplate(buffer, pagesize=A4,
@@ -143,6 +173,44 @@ def generate_pdf(result, analyst_name, ai_summary=None, gti=None):
     story.append(it)
     story.append(Spacer(1, 0.5*cm))
 
+    # ── Analysis Environment  ← NEW SECTION
+    # Required for s.90A Evidence Act 1950 — documents the system that produced this report.
+    story.append(Paragraph("Analysis Environment", styles["Heading2"]))
+    story.append(Paragraph(
+        "The following environment details are recorded to satisfy s.90A of the Evidence Act 1950 "
+        "(Malaysia), which requires that the computer producing a document be identified and shown "
+        "to be operating correctly at the time of production.",
+        styles["Normal"]
+    ))
+    story.append(Spacer(1, 0.2*cm))
+
+    env = get_analysis_environment()
+    env_data = [
+        ["Environment Field", "Value"],
+        ["Tool",              env["tool"]],
+        ["Python Version",    env["python_version"]],
+        ["Androguard Version",env["androguard"]],
+        ["Operating System",  env["os"]],
+        ["Hostname / Station",env["hostname"]],
+        ["Architecture",      env["architecture"]],
+        ["Report Generated",  env["generated_at_utc"]],
+        ["Certificate Type",  "Self-signed (internal use). Replace with agency PKI cert for court submission."],
+    ]
+    env_table = Table(env_data, colWidths=[4*cm, 13*cm])
+    env_table.setStyle(TableStyle([
+        ("BACKGROUND",     (0, 0), (-1, 0),  colors.HexColor("#1a3a5c")),
+        ("TEXTCOLOR",      (0, 0), (-1, 0),  colors.white),
+        ("FONTNAME",       (0, 0), (-1, 0),  "Helvetica-Bold"),
+        ("BACKGROUND",     (0, 1), (0, -1),  colors.HexColor("#ecf0f1")),
+        ("FONTNAME",       (0, 1), (0, -1),  "Helvetica-Bold"),
+        ("GRID",           (0, 0), (-1, -1), 0.5, colors.grey),
+        ("PADDING",        (0, 0), (-1, -1), 6),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
+        ("FONTSIZE",       (0, 0), (-1, -1), 9),
+    ]))
+    story.append(env_table)
+    story.append(Spacer(1, 0.4*cm))
+
     # ── GTI Section
     story.append(Paragraph("Google Threat Intelligence (VirusTotal)", styles["Heading2"]))
     if gti:
@@ -164,7 +232,9 @@ def generate_pdf(result, analyst_name, ai_summary=None, gti=None):
                 if file_data.get("threat_name") and file_data["threat_name"] != "Unknown":
                     story.append(Paragraph(f"Threat label: {file_data['threat_name']}", styles["Normal"]))
                 story.append(Paragraph(
-                    f"First seen: {file_data.get('first_seen', 'N/A')}  |  Times submitted: {file_data.get('times_seen', 'N/A')}",
+                    f"First seen: {file_data.get('first_seen', 'N/A')}  |  "
+                    f"Times submitted: {file_data.get('times_seen', 'N/A')}  |  "
+                    f"GTI query timestamp: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
                     styles["Normal"]
                 ))
                 story.append(Paragraph(f"Full report: {file_data['link']}", styles["Normal"]))
@@ -188,6 +258,12 @@ def generate_pdf(result, analyst_name, ai_summary=None, gti=None):
     # ── AI Verdict
     if ai_summary:
         story.append(Paragraph("AI Analyst Verdict", styles["Heading2"]))
+        story.append(Paragraph(
+            "⚠ Note: The following is AI-generated analysis for investigator reference only. "
+            "It must NOT be presented as expert forensic opinion in court proceedings.",
+            styles["Normal"]
+        ))
+        story.append(Spacer(1, 0.15*cm))
         for para in ai_summary.strip().split("\n\n"):
             if para.strip():
                 story.append(Paragraph(para.strip(), styles["Normal"]))
