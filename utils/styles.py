@@ -1,10 +1,12 @@
-
 """
 utils/styles.py
 Global CSS injection and reusable HTML component helpers for APK Triage.
 
 Uses st.html() (Streamlit 1.31+) which is the supported way to inject
 raw HTML/CSS on Streamlit Cloud without being blocked.
+
+Icon system: uses Phosphor Icons (via CDN) for a clean, consistent icon set.
+All emojis have been replaced with <i class="ph-bold ph-*"> icons.
 
 Usage in any page:
     from utils.styles import inject_css, section_header, status_pill, ioc_badge
@@ -30,10 +32,63 @@ C2_COLOURS = {
     "url":      "#16a085",
 }
 
+# ─── Icon map (Phosphor icon class names) ──────────────────────────────────────
+# Used by helper functions to render consistent icons throughout the UI.
+ICONS = {
+    # Risk levels
+    "critical":     "ph-warning-octagon",
+    "high":         "ph-warning",
+    "medium":       "ph-warning-circle",
+    "low":          "ph-check-circle",
+    "clean":        "ph-check-circle",
+    "unknown":      "ph-question",
+
+    # C2 types
+    "telegram":     "ph-paper-plane-tilt",
+    "ip":           "ph-globe",
+    "url":          "ph-link",
+
+    # Actions / states
+    "ok":           "ph-check-circle",
+    "warn":         "ph-warning",
+    "off":          "ph-minus-circle",
+    "copy":         "ph-copy",
+    "save":         "ph-floppy-disk",
+    "delete":       "ph-trash",
+    "download":     "ph-download-simple",
+    "export":       "ph-export",
+    "report":       "ph-file-text",
+    "signed":       "ph-seal-check",
+    "package":      "ph-package",
+    "database":     "ph-database",
+    "scan":         "ph-magnifying-glass",
+    "ai":           "ph-robot",
+    "lock":         "ph-lock",
+    "gear":         "ph-gear",
+    "graph":        "ph-graph",
+    "clock":        "ph-clock",
+    "badge":        "ph-identification-badge",
+    "folder":       "ph-folder",
+    "shield":       "ph-shield-check",
+    "virus":        "ph-bug",
+    "hash":         "ph-hash",
+    "tag":          "ph-tag",
+    "analyst":      "ph-user",
+    "case":         "ph-briefcase",
+    "network":      "ph-share-network",
+    "filter":       "ph-funnel",
+    "expand":       "ph-caret-down",
+    "refresh":      "ph-arrow-clockwise",
+    "info":         "ph-info",
+    "key":          "ph-key",
+}
+
 
 # ─── Global CSS ────────────────────────────────────────────────────────────────
 
 _CSS = """
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
+
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
 
@@ -63,6 +118,15 @@ _CSS = """
   --radius-lg:       12px;
 }
 
+/* Phosphor icon sizing harmonisation */
+.ph-bold {
+  font-size: 14px;
+  vertical-align: -2px;
+}
+.ph-bold.ph-lg  { font-size: 18px; vertical-align: -3px; }
+.ph-bold.ph-xl  { font-size: 22px; vertical-align: -4px; }
+.ph-bold.ph-2xl { font-size: 28px; vertical-align: -5px; }
+
 html, body, [class*="css"] {
   font-family: 'IBM Plex Sans', sans-serif !important;
   color: var(--apk-text) !important;
@@ -73,7 +137,7 @@ html, body, [class*="css"] {
 }
 
 .block-container {
-  padding-top: 5rem !important; /* ← FIXED: Increased from 1.5rem to 5rem to prevent header overlap */
+  padding-top: 5rem !important;
   max-width: 1200px !important;
 }
 
@@ -186,11 +250,10 @@ h3 {
 }
 [data-testid="stMetricValue"] {
   font-family: 'IBM Plex Mono', monospace !important;
-  font-size: 1.2rem !important; /* ← Reduced from 1.6rem to accommodate long text */
+  font-size: 1.2rem !important;
   font-weight: 600 !important;
   color: var(--apk-text) !important;
 }
-/* Force long package names to wrap instead of cutting off with ... */
 [data-testid="stMetricValue"] > div {
   white-space: normal !important;
   word-break: break-all !important;
@@ -299,14 +362,13 @@ hr {
 
 def inject_css():
     """
-    Injects global dark theme CSS using st.html() — works on Streamlit Cloud.
+    Injects global dark theme CSS + Phosphor Icons CDN using st.html().
     Call once per page, right after st.set_page_config().
     """
     st.html(_CSS)
 
 
 # ─── Reusable HTML components ──────────────────────────────────────────────────
-# All components below use st.html() instead of st.markdown(unsafe_allow_html=True)
 
 def section_header(title: str, subtitle: str = ""):
     sub_html = (
@@ -323,55 +385,68 @@ def section_header(title: str, subtitle: str = ""):
 
 
 def status_pill(label: str, state: str = "ok"):
-    colours = {
-        "ok":   ("rgba(46,204,113,0.12)",  "#2ecc71", "✓"),
-        "warn": ("rgba(243,156,18,0.12)",  "#f39c12", "⚠"),
-        "off":  ("rgba(149,165,166,0.12)", "#95a5a6", "○"),
+    icon_map = {
+        "ok":   ("rgba(46,204,113,0.12)",  "#2ecc71", "ph-check-circle"),
+        "warn": ("rgba(243,156,18,0.12)",  "#f39c12", "ph-warning"),
+        "off":  ("rgba(149,165,166,0.12)", "#95a5a6", "ph-minus-circle"),
     }
-    bg, fg, icon = colours.get(state, colours["off"])
+    bg, fg, icon_class = icon_map.get(state, icon_map["off"])
     st.html(f"""
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <div style='display:inline-flex;align-items:center;gap:6px;
                 padding:4px 10px;border-radius:20px;
                 background:{bg};border:1px solid {fg}44;
                 font-size:12px;font-weight:500;color:{fg};
                 font-family:IBM Plex Sans,sans-serif;margin:4px 0'>
-      <span>{icon}</span><span>{label}</span>
+      <i class="ph-bold {icon_class}" style="font-size:13px"></i>
+      <span>{label}</span>
     </div>
     """)
 
 
 def risk_badge(risk_level: str):
     colour = RISK_COLOURS.get(risk_level, "#95a5a6")
+    icon_class = ICONS.get(risk_level.lower(), "ph-question")
     st.html(f"""
-    <span style='display:inline-block;padding:3px 10px;border-radius:20px;
-                 background:{colour}22;border:1px solid {colour}55;
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
+    <span style='display:inline-flex;align-items:center;gap:5px;padding:3px 10px;
+                 border-radius:20px;background:{colour}22;border:1px solid {colour}55;
                  color:{colour};font-size:11px;font-weight:600;
                  font-family:IBM Plex Mono,monospace;letter-spacing:0.05em'>
+      <i class="ph-bold {icon_class}" style="font-size:12px"></i>
       {risk_level}
     </span>
     """)
 
 
 def ioc_badge(value: str, ioc_type: str = ""):
-    colour   = C2_COLOURS.get(ioc_type, "#58a6ff")
-    label    = {"telegram": "TG", "ip": "IP", "url": "URL"}.get(ioc_type, "IOC")
-    safe_val = value.replace("'", "\\'").replace('"', '&quot;')
+    colour     = C2_COLOURS.get(ioc_type, "#58a6ff")
+    label      = {"telegram": "TG", "ip": "IP", "url": "URL"}.get(ioc_type, "IOC")
+    icon_class = ICONS.get(ioc_type, "ph-link")
+    safe_val   = value.replace("'", "\\'").replace('"', '&quot;')
     st.html(f"""
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <div style='display:flex;align-items:center;gap:8px;
                 padding:7px 12px;margin:4px 0;
                 background:#161b22;border:1px solid #30363d;
                 border-left:3px solid {colour};border-radius:6px'>
       <span style='color:{colour};font-size:10px;font-weight:600;
-                   background:{colour}22;padding:1px 6px;border-radius:3px;
-                   font-family:IBM Plex Mono,monospace;white-space:nowrap'>{label}</span>
+                   background:{colour}22;padding:2px 7px;border-radius:3px;
+                   font-family:IBM Plex Mono,monospace;white-space:nowrap;
+                   display:flex;align-items:center;gap:4px'>
+        <i class="ph-bold {icon_class}" style="font-size:11px"></i>{label}
+      </span>
       <span style='color:#e6edf3;flex:1;word-break:break-all;
                    font-family:IBM Plex Mono,monospace;font-size:12px'>{value}</span>
       <button onclick="navigator.clipboard.writeText('{safe_val}').then(()=>{{
-                  this.textContent='✓';setTimeout(()=>this.textContent='⎘',1200)}})"
+                  this.innerHTML='<i class=\\'ph-bold ph-check\\' style=\\'font-size:12px\\'></i>';
+                  setTimeout(()=>this.innerHTML='<i class=\\'ph-bold ph-copy\\' style=\\'font-size:12px\\'></i>',1200)}})"
               style='background:none;border:1px solid #30363d;border-radius:4px;
-                     color:#7d8590;cursor:pointer;padding:2px 7px;font-size:12px;
-                     transition:color 0.15s;flex-shrink:0'
-              title='Copy to clipboard'>⎘</button>
+                     color:#7d8590;cursor:pointer;padding:3px 7px;font-size:12px;
+                     transition:color 0.15s;flex-shrink:0;line-height:1'
+              title='Copy to clipboard'>
+        <i class="ph-bold ph-copy" style="font-size:12px"></i>
+      </button>
     </div>
     """)
 
@@ -385,6 +460,7 @@ def permission_card(perm_name: str, description: str, score: int):
         colour, severity = "#f39c12", "LOW"
 
     st.html(f"""
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <div style='display:flex;align-items:flex-start;gap:12px;
                 padding:10px 14px;margin:5px 0;
                 background:#161b22;border:1px solid #30363d;
@@ -423,11 +499,12 @@ def ai_verdict_box(summary: str):
         for p in paragraphs
     )
     st.html(f"""
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <div style='background:#161b22;border:1px solid #30363d;
                 border-left:3px solid #f39c12;border-radius:8px;
                 padding:16px 18px;margin:8px 0'>
       <div style='display:flex;align-items:center;gap:8px;margin-bottom:12px'>
-        <span style='font-size:15px'>🤖</span>
+        <i class="ph-bold ph-robot" style="font-size:16px;color:#f39c12"></i>
         <span style='font-family:IBM Plex Sans,sans-serif;font-size:11px;
                      font-weight:600;color:#f39c12;text-transform:uppercase;
                      letter-spacing:0.08em'>AI Analyst Verdict</span>
@@ -443,11 +520,14 @@ def analysis_stepper(steps: list):
     parts = []
     for i, (label, state) in enumerate(steps):
         if state == "done":
-            dot_bg, dot_fg, text_colour, dot_content = "#2ecc71", "#0d1117", "#2ecc71", "✓"
+            dot_bg, dot_fg, text_colour = "#2ecc71", "#0d1117", "#2ecc71"
+            dot_content = "<i class='ph-bold ph-check' style='font-size:11px'></i>"
         elif state == "active":
-            dot_bg, dot_fg, text_colour, dot_content = "#58a6ff", "#0d1117", "#58a6ff", str(i + 1)
+            dot_bg, dot_fg, text_colour = "#58a6ff", "#0d1117", "#58a6ff"
+            dot_content = str(i + 1)
         else:
-            dot_bg, dot_fg, text_colour, dot_content = "#21262d", "#7d8590", "#7d8590", str(i + 1)
+            dot_bg, dot_fg, text_colour = "#21262d", "#7d8590", "#7d8590"
+            dot_content = str(i + 1)
 
         connector = (
             "<div style='flex:1;height:1px;background:#30363d;margin:0 4px;margin-bottom:16px'></div>"
@@ -470,8 +550,8 @@ def analysis_stepper(steps: list):
         """)
 
     st.html(f"""
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <div style='display:flex;align-items:flex-start;padding:14px 0;margin:8px 0'>
       {''.join(parts)}
     </div>
     """)
-

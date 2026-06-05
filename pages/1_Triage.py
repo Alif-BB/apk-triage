@@ -30,7 +30,7 @@ from core.case_package  import (
 
 st.set_page_config(
     page_title="APK Triage  |  Powered by VirusTotal",
-    page_icon="🔍",
+    page_icon="search",
     layout="wide"
 )
 
@@ -43,13 +43,13 @@ st.divider()
 # ─── Sidebar ─────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.header("⚙️ Settings")
+    st.header("Settings")
 
     # ── Analyst Identity
-    st.subheader("🪪 Analyst Identity")
+    st.subheader("Analyst Identity")
     st.caption("Embedded in all exported files")
     analyst_name = st.text_input(
-        "Your name / badge number",
+        "Name / badge number",
         placeholder="e.g. Insp. Ahmad bin Ali  D/12345",
         help="Embedded in the PDF for chain-of-custody purposes"
     )
@@ -63,7 +63,7 @@ with st.sidebar:
     st.divider()
 
     # ── Case Details
-    st.subheader("📁 Case Details")
+    st.subheader("Case Details")
     case_number = st.text_input(
         "Case / Report Number",
         placeholder="e.g. CCID/KL/2025/00123",
@@ -76,7 +76,7 @@ with st.sidebar:
         help="Classification marking applied to all exported documents"
     )
 
-    # ── TLP Classification  ← NEW
+    # ── TLP Classification
     tlp = st.selectbox(
         "TLP Classification",
         ["GREEN", "WHITE", "AMBER", "RED"],
@@ -93,7 +93,7 @@ with st.sidebar:
     st.divider()
 
     # ── VirusTotal
-    st.subheader("🌐 VirusTotal")
+    st.subheader("VirusTotal")
     vt_api_key = st.secrets.get("VT_API_KEY", None) or st.text_input(
         "VirusTotal API Key",
         type="password",
@@ -108,7 +108,7 @@ with st.sidebar:
     st.divider()
 
     # ── Gemini AI
-    st.subheader("🤖 AI Settings")
+    st.subheader("AI Settings")
     gemini_api_key = st.secrets.get("GEMINI_API_KEY", None)
     if gemini_api_key:
         status_pill("AI Analyst enabled", "ok")
@@ -116,7 +116,7 @@ with st.sidebar:
         status_pill("AI not configured — contact admin", "off")
 
     st.divider()
-    st.caption("📋 PDF reports include SHA-256 hash + digital signature for court-admissible chain of custody.")
+    st.caption("PDF reports include SHA-256 hash + digital signature for court-admissible chain of custody.")
 
 # ─── File Upload ──────────────────────────────────────────────────────────────────
 
@@ -124,7 +124,7 @@ uploaded_file = st.file_uploader("Upload an APK file", type=["apk"])
 
 if uploaded_file:
     if not analyst_name:
-        st.warning("⚠️ No analyst name entered. Add your name in the sidebar for a complete chain-of-custody report.")
+        st.warning("No analyst name entered. Add your name in the sidebar for a complete chain-of-custody report.")
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".apk") as tmp:
         tmp.write(uploaded_file.read())
@@ -135,7 +135,7 @@ if uploaded_file:
     with stepper_placeholder:
         analysis_stepper([
             ("Static Analysis", "active"),
-            ("VirusTotal Enrichment",  "pending"),
+            ("VirusTotal",      "pending"),
             ("AI Verdict",      "pending"),
             ("Saved",           "pending"),
         ])
@@ -155,7 +155,7 @@ if uploaded_file:
         with stepper_placeholder:
             analysis_stepper([
                 ("Static Analysis", "done"),
-                ("VirusTotal Enrichment",  "active"),
+                ("VirusTotal",      "active"),
                 ("AI Verdict",      "pending"),
                 ("Saved",           "pending"),
             ])
@@ -179,15 +179,15 @@ if uploaded_file:
     with stepper_placeholder:
         analysis_stepper([
             ("Static Analysis", "done"),
-            ("VirusTotal Enrichment",  "done" if gti else "pending"),
+            ("VirusTotal",      "done" if gti else "pending"),
             ("AI Verdict",      "pending"),
             ("Saved",           "done"),
         ])
 
     if scan_id:
-        st.success(f"✅ Saved to campaign database (Scan #{scan_id})")
+        st.success(f"Saved to campaign database (Scan #{scan_id})")
     else:
-        st.info("ℹ️ This APK was already in the campaign database (duplicate SHA-256).")
+        st.info("This APK was already in the campaign database (duplicate SHA-256).")
 
     risk_level, risk_color = get_risk_level(result["score"])
 
@@ -209,7 +209,7 @@ if uploaded_file:
                 <div style='font-size:13px; color:#aaa; margin-top:2px'>likelihood of malicious behaviour</div>
                 <div style='font-size:11px; color:#666; margin-top:6px'>raw score: {result["score"]} / 300</div>
                 <div style='font-size:13px; color:#888; margin-top:6px'>
-                    {"✅ VirusTotal enriched" if gti else "⚪ Static analysis only"}
+                    {"VirusTotal enriched" if gti else "Static analysis only"}
                 </div>
             </div>
             """,
@@ -223,7 +223,7 @@ if uploaded_file:
 
     # ── Evidence Integrity
     divider_with_label("Evidence Integrity")
-    with st.expander("🔐 Evidence Integrity", expanded=True):
+    with st.expander("Evidence Integrity", expanded=True):
         integrity_data = [
             ("MD5", result["md5"], True),
             ("SHA-1", result["sha1"], True),
@@ -252,21 +252,21 @@ if uploaded_file:
     if gti:
         if gti.get("errors"):
             for err in gti["errors"]:
-                st.warning(f"⚠️ {err}")
+                st.warning(f"{err}")
 
         file_data = gti.get("file")
         if file_data:
             if file_data.get("not_found"):
-                st.info("📋 APK hash **not found** in VirusTotal — may be a new or private sample. Treat with caution.")
+                st.info("APK hash **not found** in VirusTotal — may be a new or private sample. Treat with caution.")
             else:
                 malicious = file_data["malicious"]
                 total     = file_data["total"]
                 if malicious > 10:
-                    st.error(f"🔴 **{malicious}/{total} antivirus engines flagged this APK as malicious**")
+                    st.error(f"**{malicious}/{total} antivirus engines flagged this APK as malicious**")
                 elif malicious > 0:
-                    st.warning(f"🟠 **{malicious}/{total} engines flagged this APK**")
+                    st.warning(f"**{malicious}/{total} engines flagged this APK**")
                 else:
-                    st.success(f"✅ **0/{total} engines detected threats in this APK**")
+                    st.success(f"**0/{total} engines detected threats in this APK**")
 
                 col_a, col_b, col_c = st.columns(3)
                 col_a.metric("Malicious",  file_data["malicious"])
@@ -274,8 +274,8 @@ if uploaded_file:
                 col_c.metric("Times Seen", file_data["times_seen"])
 
                 if file_data.get("threat_name") and file_data["threat_name"] != "Unknown":
-                    st.error(f"🏷️ Threat Label: **{file_data['threat_name']}**")
-                st.markdown(f"[View full report on VirusTotal ↗]({file_data['link']})")
+                    st.error(f"Threat Label: **{file_data['threat_name']}**")
+                st.markdown(f"[View full report on VirusTotal]({file_data['link']})")
 
         if gti.get("ips"):
             st.markdown("**IP Address Reputation:**")
@@ -287,7 +287,7 @@ if uploaded_file:
                         "ip"
                     )
                 else:
-                    st.markdown(f"⚪ `{ip}` — Not found in VirusTotal")
+                    st.markdown(f"`{ip}` — Not found in VirusTotal")
 
         if gti.get("urls"):
             st.markdown("**URL Reputation:**")
@@ -296,7 +296,7 @@ if uploaded_file:
                     short = url[:60] + "..." if len(url) > 60 else url
                     ioc_badge(f"{short}  —  {data['malicious']}/{data['total']} detections", "url")
                 else:
-                    st.markdown(f"⚪ `{url[:60]}` — Not found in VirusTotal")
+                    st.markdown(f"`{url[:60]}` — Not found in VirusTotal")
     else:
         status_pill("Add your VirusTotal API key in the sidebar to enable enrichment", "warn")
 
@@ -307,7 +307,7 @@ if uploaded_file:
         with stepper_placeholder:
             analysis_stepper([
                 ("Static Analysis", "done"),
-                ("VirusTotal Enrichment",  "done" if gti else "pending"),
+                ("VirusTotal",      "done" if gti else "pending"),
                 ("AI Verdict",      "active"),
                 ("Saved",           "done"),
             ])
@@ -318,7 +318,7 @@ if uploaded_file:
         with stepper_placeholder:
             analysis_stepper([
                 ("Static Analysis", "done"),
-                ("VirusTotal Enrichment",  "done" if gti else "pending"),
+                ("VirusTotal",      "done" if gti else "pending"),
                 ("AI Verdict",      "done"),
                 ("Saved",           "done"),
             ])
@@ -357,7 +357,7 @@ if uploaded_file:
                 gti_suffix = ""
                 if gti and gti["ips"].get(ip):
                     m = gti["ips"][ip].get("malicious", 0)
-                    gti_suffix = f"  🔴 VirusTotal: {m} detections" if m > 0 else "  🟢 VirusTotal: clean"
+                    gti_suffix = f"  — VirusTotal: {m} detections" if m > 0 else "  — VirusTotal: clean"
                 ioc_badge(f"{ip}{gti_suffix}", "ip")
 
         if result["urls"]:
@@ -366,7 +366,7 @@ if uploaded_file:
                     gti_suffix = ""
                     if gti and gti["urls"].get(u):
                         m = gti["urls"][u].get("malicious", 0)
-                        gti_suffix = f"  🔴 VirusTotal: {m} detections" if m > 0 else "  🟢 VirusTotal: clean"
+                        gti_suffix = f"  — VirusTotal: {m} detections" if m > 0 else "  — VirusTotal: clean"
                     ioc_badge(f"{u}{gti_suffix}", "url")
 
         if result["keywords"]:
@@ -408,7 +408,7 @@ if uploaded_file:
         "The **Case Package** bundles everything an investigator needs — generated in one click."
     )
 
-    with st.expander("📋 What's inside the Case Package?", expanded=False):
+    with st.expander("What's inside the Case Package?", expanded=False):
         st.markdown("""
 | File | Purpose |
 |------|---------|
@@ -440,7 +440,7 @@ if uploaded_file:
             f"<div style='text-align:center; padding:8px; border-radius:6px; "
             f"background:{cls_color}22; border:1.5px solid {cls_color}; "
             f"color:{cls_color}; font-weight:bold; font-size:15px; letter-spacing:2px'>"
-            f"⚠ {classification}</div>",
+            f"{classification}</div>",
             unsafe_allow_html=True
         )
     with badge_col2:
@@ -448,7 +448,7 @@ if uploaded_file:
             f"<div style='text-align:center; padding:8px; border-radius:6px; "
             f"background:{tlp_color}22; border:1.5px solid {tlp_color}; "
             f"color:{tlp_color}; font-weight:bold; font-size:15px; letter-spacing:2px'>"
-            f"🔵 TLP:{tlp}</div>",
+            f"TLP:{tlp}</div>",
             unsafe_allow_html=True
         )
 
@@ -460,16 +460,16 @@ if uploaded_file:
     col_a, col_b, col_c = st.columns(3)
 
     with col_a:
-        st.markdown("#### 📦 Full Case Package")
+        st.markdown("#### Case Package")
         st.caption("ZIP containing signed PDF + JSON + incident template + CoC log")
         with st.spinner("Building case package..."):
             try:
                 case_zip = generate_case_package(
                     result, analyst_name, analyst_org,
-                    case_number, classification, gti, ai_summary, tlp  # ← tlp passed through
+                    case_number, classification, gti, ai_summary, tlp
                 )
                 st.download_button(
-                    label="⬇️ Download Case Package (.zip)",
+                    label="Download Case Package (.zip)",
                     data=case_zip,
                     file_name=f"case_package_{filename_base}.zip",
                     mime="application/zip",
@@ -479,11 +479,11 @@ if uploaded_file:
                 st.error(f"Package generation failed: {e}")
 
     with col_b:
-        st.markdown("#### 📄 PDF Report Only")
+        st.markdown("#### PDF Report")
         st.caption("Unsigned PDF — quick preview or internal use")
         unsigned_pdf = generate_pdf(result, full_analyst, ai_summary, gti)
         st.download_button(
-            label="⬇️ Download PDF (unsigned)",
+            label="Download PDF (unsigned)",
             data=unsigned_pdf,
             file_name=f"{filename_base}.pdf",
             mime="application/pdf",
@@ -491,14 +491,14 @@ if uploaded_file:
         )
 
     with col_c:
-        st.markdown("#### 🗂 JSON Evidence File")
+        st.markdown("#### JSON Evidence File")
         st.caption("Machine-readable — includes TLP marking + IoC confidence levels")
         evidence_json = generate_case_json(
             result, analyst_name, analyst_org,
-            case_number, classification, gti, ai_summary, tlp  # ← tlp passed through
+            case_number, classification, gti, ai_summary, tlp
         )
         st.download_button(
-            label="⬇️ Download evidence.json",
+            label="Download evidence.json",
             data=json.dumps(evidence_json, indent=2, default=str),
             file_name=f"evidence_{filename_base}.json",
             mime="application/json",
@@ -507,28 +507,28 @@ if uploaded_file:
 
     st.divider()
 
-    with st.expander("📝 Preview: BNMLINK / Cyber999 Incident Report Template", expanded=False):
+    with st.expander("Preview: BNMLINK / Cyber999 Incident Report Template", expanded=False):
         template_text = generate_bnmlink_template(
             result, analyst_name, analyst_org, case_number, classification, gti, tlp
         )
         st.text(template_text)
         st.download_button(
-            label="⬇️ Download Incident Report (.txt)",
+            label="Download Incident Report (.txt)",
             data=template_text,
             file_name=f"incident_report_{filename_base}.txt",
             mime="text/plain",
         )
 
-    with st.expander("🔗 Preview: Chain of Custody Log", expanded=False):
+    with st.expander("Preview: Chain of Custody Log", expanded=False):
         coc_csv = generate_chain_of_custody_log(
             result, analyst_name, analyst_org, case_number
         )
         st.code(coc_csv, language=None)
         st.download_button(
-            label="⬇️ Download Chain of Custody (.csv)",
+            label="Download Chain of Custody (.csv)",
             data=coc_csv,
             file_name=f"chain_of_custody_{filename_base}.csv",
             mime="text/csv",
         )
 
-    st.caption("✅ Signed PDF uses a self-signed certificate. For court submission, replace with an agency-issued PKI certificate.")
+    st.caption("Signed PDF uses a self-signed certificate. For court submission, replace with an agency-issued PKI certificate.")

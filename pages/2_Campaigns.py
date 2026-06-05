@@ -35,7 +35,7 @@ init_db()
 # ─── Page Config ──────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Campaign Clustering  |  APK Triage",
-    page_icon="🕸️",
+    page_icon="network",
     layout="wide"
 )
 inject_css()
@@ -44,11 +44,6 @@ inject_css()
 # ─── Helper: rebuild analyse_apk-style result dict from DB record ─────────────────
 
 def _db_to_result(details: dict) -> dict:
-    """
-    Reconstructs an analyse_apk-compatible result dict from a DB scan record.
-    Activities / services / receivers / URLs are not stored in the DB so they
-    default to empty — the PDF sections for those will show 'None'.
-    """
     permissions  = json.loads(details.get("permissions") or "[]")
     keywords_raw = json.loads(details.get("keywords")    or "[]")
 
@@ -82,10 +77,6 @@ def _db_to_result(details: dict) -> dict:
 
 
 def _db_to_gti(details: dict) -> dict | None:
-    """
-    Rebuilds a minimal gti dict from the summary columns stored in the DB.
-    Full per-IP / per-URL detail is not stored, so only the file block is filled.
-    """
     if not details.get("gti_total"):
         return None
     return {
@@ -108,9 +99,8 @@ def _db_to_gti(details: dict) -> dict | None:
 # ─── Sidebar ──────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.header("⚙️ Settings")
+    st.header("Settings")
 
-    # AI key — needed for on-demand verdict generation
     gemini_api_key = st.secrets.get("GEMINI_API_KEY", None)
     if gemini_api_key:
         status_pill("AI Analyst enabled", "ok")
@@ -118,8 +108,8 @@ with st.sidebar:
         status_pill("AI not configured — contact admin", "off")
 
     st.divider()
-    with st.expander("⚠️ Danger Zone"):
-        if st.button("🗑️ Clear entire database", type="secondary"):
+    with st.expander("Danger Zone"):
+        if st.button("Clear entire database", type="secondary"):
             from campaign.db import get_connection
             conn = get_connection()
             conn.executescript(
@@ -137,17 +127,17 @@ st.divider()
 # ─── Header Stats ─────────────────────────────────────────────────────────────────
 stats = get_stats()
 c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("📦 APKs Analysed",   stats["total_apks"])
-c2.metric("🕸️ Campaigns Found",  stats["total_campaigns"])
-c3.metric("🔴 Critical APKs",   stats["critical_apks"])
-c4.metric("📱 Telegram C2s",    stats["telegram_c2"])
-c5.metric("🌐 IP-based C2s",    stats["ip_c2"])
+c1.metric("APKs Analysed",   stats["total_apks"])
+c2.metric("Campaigns Found", stats["total_campaigns"])
+c3.metric("Critical APKs",   stats["critical_apks"])
+c4.metric("Telegram C2s",    stats["telegram_c2"])
+c5.metric("IP-based C2s",    stats["ip_c2"])
 
 if stats["total_apks"] == 0:
     st.divider()
     st.info(
         "No APKs in the database yet. "
-        "Upload and analyse an APK on the **🔍 Triage** page — "
+        "Upload and analyse an APK on the **Triage** page — "
         "it will be saved here automatically."
     )
     st.stop()
@@ -156,9 +146,9 @@ st.divider()
 
 # ─── Main tabs ────────────────────────────────────────────────────────────────────
 tab_campaigns, tab_graph, tab_timeline = st.tabs([
-    "📋 Campaigns",
-    "🕸️ Network Graph",
-    "🕐 Timeline",
+    "Campaigns",
+    "Network Graph",
+    "Timeline",
 ])
 
 # ══════════════════════════════════════════════════════════════════════════════════
@@ -172,8 +162,8 @@ with tab_campaigns:
             "Filter by C2 type",
             ["all", "telegram", "ip", "url"],
             format_func=lambda x: {
-                "all": "All types", "telegram": "📱 Telegram",
-                "ip": "🌐 IP address", "url": "🔗 URL",
+                "all": "All types", "telegram": "Telegram",
+                "ip": "IP address", "url": "URL",
             }[x]
         )
 
@@ -182,29 +172,29 @@ with tab_campaigns:
     if not campaigns:
         st.info("No campaigns match this filter.")
     else:
-        RISK_EMOJI = {
-            "CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡",
-            "LOW": "🟢",      "CLEAN": "✅", "UNKNOWN": "⚪",
+        # Risk and C2 type labels — text only, no emoji
+        RISK_LABEL = {
+            "CRITICAL": "CRITICAL", "HIGH": "HIGH", "MEDIUM": "MEDIUM",
+            "LOW": "LOW",           "CLEAN": "CLEAN", "UNKNOWN": "UNKNOWN",
         }
-        C2_EMOJI = {"telegram": "📱", "ip": "🌐", "url": "🔗"}
-        IOC_TYPE = {"telegram": "telegram", "ip": "ip", "url": "url"}
+        C2_LABEL = {"telegram": "TG", "ip": "IP", "url": "URL"}
 
         st.markdown(f"**{len(campaigns)} campaign(s) found**")
 
         for camp in campaigns:
-            emoji     = C2_EMOJI.get(camp["pivot_type"], "❓")
+            c2_type   = C2_LABEL.get(camp["pivot_type"], "?")
             apk_count = camp["apk_count"]
-            badge     = ("🔴 **ACTIVE**"  if apk_count >= 3
-                         else "🟠 **GROWING**" if apk_count >= 2
-                         else "🟡 **SINGLE**")
+            status    = ("ACTIVE"   if apk_count >= 3
+                         else "GROWING" if apk_count >= 2
+                         else "SINGLE")
 
             with st.expander(
-                f"{emoji} {camp['name']}  —  {apk_count} APK(s)  {badge}",
+                f"[{c2_type}] {camp['name']}  —  {apk_count} APK(s)  [{status}]",
                 expanded=(apk_count >= 2),
             ):
                 col_info, col_action = st.columns([3, 1])
                 with col_info:
-                    ioc_badge(camp["pivot_value"], IOC_TYPE.get(camp["pivot_type"], ""))
+                    ioc_badge(camp["pivot_value"], camp["pivot_type"])
                     st.markdown(
                         f"First seen: `{camp['first_seen'][:10]}`  |  "
                         f"Last seen: `{camp['last_seen'][:10]}`  |  "
@@ -213,7 +203,7 @@ with tab_campaigns:
                 with col_action:
                     new_name = st.text_input("Rename campaign", value=camp["name"],
                                              key=f"rename_{camp['id']}")
-                    if st.button("💾 Save name", key=f"save_{camp['id']}"):
+                    if st.button("Save name", key=f"save_{camp['id']}"):
                         rename_campaign(camp["id"], new_name)
                         st.success("Name updated — refresh to see change.")
 
@@ -223,7 +213,7 @@ with tab_campaigns:
                     rows = []
                     for m in members:
                         rows.append({
-                            "Risk":    f"{RISK_EMOJI.get(m['risk_level'], '⚪')} {m['risk_level']}",
+                            "Risk":    f"{m['risk_level']}",
                             "Package": m["package"],
                             "Score":   m["risk_score"],
                             "GTI":     f"{m['gti_malicious']}/{m['gti_total']}" if m["gti_total"] else "—",
@@ -234,7 +224,7 @@ with tab_campaigns:
                         })
                     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-                    with st.expander("🗑️ Remove an APK from the database", expanded=False):
+                    with st.expander("Remove an APK from the database", expanded=False):
                         del_options = {
                             f"{m['package']} ({m['sha256'][:12]}…)": m["id"]
                             for m in members
@@ -242,7 +232,7 @@ with tab_campaigns:
                         selected = st.selectbox("Select APK to delete",
                                                 list(del_options.keys()),
                                                 key=f"del_{camp['id']}")
-                        if st.button("🗑️ Delete this scan",
+                        if st.button("Delete this scan",
                                      key=f"delbtn_{camp['id']}", type="secondary"):
                             delete_scan(del_options[selected])
                             st.warning("Scan deleted. Refresh the page.")
@@ -257,18 +247,28 @@ with tab_graph:
     else:
         apk_count_graph = sum(1 for n in graph_data["nodes"] if n["type"] == "apk")
         c2_count_graph  = sum(1 for n in graph_data["nodes"] if n["type"] == "c2")
-        st.subheader("APK ↔ C2 Network")
+        st.subheader("APK — C2 Network")
         st.caption(
             f"{apk_count_graph} APK node(s) connected to {c2_count_graph} "
             f"C2 node(s) via {len(graph_data['edges'])} edge(s)"
         )
+
+        # Legend — text only
         leg_cols = st.columns(6)
-        for col, label in zip(leg_cols, [
-            "🔴 CRITICAL APK", "🟠 HIGH APK", "🟡 MEDIUM APK",
-            "📱 Telegram C2",  "🌐 IP C2",    "🔗 URL C2",
-        ]):
-            col.markdown(f"<span style='font-size:12px;color:#7d8590'>{label}</span>",
-                         unsafe_allow_html=True)
+        legend_items = [
+            ("CRITICAL APK", "#e74c3c"),
+            ("HIGH APK",     "#e67e22"),
+            ("MEDIUM APK",   "#f39c12"),
+            ("Telegram C2",  "#2980b9"),
+            ("IP C2",        "#8e44ad"),
+            ("URL C2",       "#16a085"),
+        ]
+        for col, (label, color) in zip(leg_cols, legend_items):
+            col.markdown(
+                f"<span style='font-size:12px;color:{color};font-weight:600;"
+                f"font-family:IBM Plex Mono,monospace'>{label}</span>",
+                unsafe_allow_html=True
+            )
 
         COLOR_MAP = {
             "CRITICAL": "#e74c3c", "HIGH": "#e67e22", "MEDIUM": "#f39c12",
@@ -310,13 +310,13 @@ with tab_graph:
         </script></body></html>
         """, height=600, scrolling=False)
         st.caption(
-            "🔴/🟠/🟡 = APK nodes coloured by risk level  |  "
-            "💠 = C2 nodes (blue=Telegram, purple=IP, teal=URL)  |  "
+            "Circles = APK nodes coloured by risk level  |  "
+            "Diamonds = C2 nodes (blue=Telegram, purple=IP, teal=URL)  |  "
             "APKs sharing the same C2 node belong to the same campaign."
         )
 
 # ══════════════════════════════════════════════════════════════════════════════════
-# TAB 3 — Timeline  (clickable rows → full scan detail panel)
+# TAB 3 — Timeline
 # ══════════════════════════════════════════════════════════════════════════════════
 with tab_timeline:
     timeline = get_apk_timeline()
@@ -329,14 +329,10 @@ with tab_timeline:
             "**Click any row** to view full scan details, generate AI verdict, or export a report"
         )
 
-        RISK_EMOJI = {
-            "CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡",
-            "LOW": "🟢",      "CLEAN": "✅", "UNKNOWN": "⚪",
-        }
         rows = []
         for scan in timeline:
             rows.append({
-                "Risk":          f"{RISK_EMOJI.get(scan['risk_level'], '⚪')} {scan['risk_level']}",
+                "Risk":          scan["risk_level"],
                 "Score":         scan["risk_score"],
                 "Package":       scan["package"],
                 "GTI":           f"{scan['gti_malicious']}/{scan['gti_total']}" if scan["gti_total"] else "—",
@@ -367,7 +363,7 @@ with tab_timeline:
             <div style='text-align:center;padding:28px;margin-top:8px;
                         background:#161b22;border:1px dashed #30363d;border-radius:8px;
                         color:#7d8590;font-family:IBM Plex Sans,sans-serif;font-size:13px'>
-              👆 Click any row in the table above to view full scan details
+              Click any row in the table above to view full scan details
             </div>
             """)
         else:
@@ -428,7 +424,7 @@ with tab_timeline:
                           if details["gti_total"] else "Not checked")
 
                 # ── Evidence integrity ────────────────────────────────────────────
-                with st.expander("🔐 Evidence Integrity", expanded=True):
+                with st.expander("Evidence Integrity", expanded=True):
                     for label, val in [
                         ("MD5",     details.get("md5",    "—")),
                         ("SHA-1",   details.get("sha1",   "—")),
@@ -463,7 +459,7 @@ with tab_timeline:
                 left_col, right_col = st.columns(2)
                 with left_col:
                     perms = json.loads(details.get("permissions") or "[]")
-                    with st.expander(f"🔒 Dangerous Permissions ({len(perms)})",
+                    with st.expander(f"Dangerous Permissions ({len(perms)})",
                                      expanded=bool(perms)):
                         if perms:
                             for p in perms:
@@ -479,7 +475,7 @@ with tab_timeline:
 
                 with right_col:
                     indicators = details.get("indicators", [])
-                    with st.expander(f"🎯 C2 Indicators ({len(indicators)})",
+                    with st.expander(f"C2 Indicators ({len(indicators)})",
                                      expanded=bool(indicators)):
                         if indicators:
                             C2_COLOUR = {"telegram": "#2980b9", "ip": "#8e44ad", "url": "#16a085"}
@@ -511,13 +507,13 @@ with tab_timeline:
                     pass
                 if kw_list:
                     st.markdown(
-                        "**🏦 Banking keywords detected:** "
+                        "**Banking keywords detected:** "
                         + "  ".join(f"`{k}`" for k in kw_list)
                     )
 
                 # ── GTI threat label ──────────────────────────────────────────────
                 if details.get("gti_threat"):
-                    st.error(f"🏷️ GTI Threat Label: **{details['gti_threat']}**")
+                    st.error(f"GTI Threat Label: **{details['gti_threat']}**")
 
                 st.divider()
 
@@ -529,7 +525,6 @@ with tab_timeline:
                 current_verdict = details.get("ai_verdict") or ""
 
                 if current_verdict:
-                    # ── Display stored verdict ────────────────────────────────────
                     paragraphs = [p.strip() for p in current_verdict.strip().split("\n\n") if p.strip()]
                     paras_html = "".join(
                         f"<p style='margin:0 0 10px;line-height:1.7;font-size:13px;"
@@ -543,7 +538,7 @@ with tab_timeline:
                       <div style='font-size:10px;font-weight:600;color:#f39c12;
                                   text-transform:uppercase;letter-spacing:0.08em;
                                   margin-bottom:10px;font-family:IBM Plex Sans,sans-serif'>
-                        🤖 AI Analyst Verdict &nbsp;·&nbsp;
+                        AI Analyst Verdict &nbsp;·&nbsp;
                         <span style='font-weight:400;color:#7d8590'>
                           AI-generated — not a definitive forensic finding
                         </span>
@@ -552,9 +547,8 @@ with tab_timeline:
                     </div>
                     """)
 
-                    # Allow re-generating if AI is available
                     if gemini_api_key:
-                        if st.button("🔄 Re-generate verdict", key=f"regen_{scan_id}"):
+                        if st.button("Re-generate verdict", key=f"regen_{scan_id}"):
                             with st.spinner("Generating AI verdict via Gemini…"):
                                 new_verdict = generate_ai_summary(result, gemini_api_key, gti_minimal)
                             save_ai_verdict(scan_id, new_verdict)
@@ -564,7 +558,6 @@ with tab_timeline:
                         st.caption("AI re-generation disabled — no Gemini API key configured.")
 
                 else:
-                    # ── No verdict yet ────────────────────────────────────────────
                     if gemini_api_key:
                         st.html("""
                         <div style='padding:14px 16px;background:#161b22;
@@ -575,7 +568,7 @@ with tab_timeline:
                           Click the button below to generate one now.
                         </div>
                         """)
-                        if st.button("🤖 Generate AI Verdict", key=f"gen_{scan_id}",
+                        if st.button("Generate AI Verdict", key=f"gen_{scan_id}",
                                      type="primary"):
                             with st.spinner("Generating AI verdict via Gemini…"):
                                 new_verdict = generate_ai_summary(result, gemini_api_key, gti_minimal)
@@ -588,7 +581,7 @@ with tab_timeline:
                                     border:1px solid #30363d;border-radius:8px;
                                     color:#7d8590;font-size:13px;
                                     font-family:IBM Plex Sans,sans-serif'>
-                          ○ AI verdicts not configured — add a Gemini API key to
+                          AI verdicts not configured — add a Gemini API key to
                           <code>.streamlit/secrets.toml</code>.
                         </div>
                         """)
@@ -602,7 +595,6 @@ with tab_timeline:
 
                 ai_for_export = details.get("ai_verdict") or None
 
-                # Classification selector (not stored in DB, default RESTRICTED)
                 classification = st.selectbox(
                     "Document Classification",
                     ["RESTRICTED", "CONFIDENTIAL", "SECRET", "UNCLASSIFIED"],
@@ -618,7 +610,7 @@ with tab_timeline:
 
                 # ── Unsigned PDF ──────────────────────────────────────────────────
                 with exp_col1:
-                    st.markdown("#### 📄 PDF Report")
+                    st.markdown("#### PDF Report")
                     st.caption("Quick forensic report — unsigned")
                     try:
                         pdf_buf = generate_pdf(
@@ -628,7 +620,7 @@ with tab_timeline:
                             gti_minimal,
                         )
                         st.download_button(
-                            label="⬇️ Download PDF (unsigned)",
+                            label="Download PDF (unsigned)",
                             data=pdf_buf,
                             file_name=f"triage_{fname}.pdf",
                             mime="application/pdf",
@@ -640,7 +632,7 @@ with tab_timeline:
 
                 # ── Signed PDF ────────────────────────────────────────────────────
                 with exp_col2:
-                    st.markdown("#### 🔏 Signed PDF")
+                    st.markdown("#### Signed PDF")
                     st.caption("Digitally signed — court-admissible")
                     try:
                         pdf_buf_s = generate_pdf(
@@ -653,7 +645,7 @@ with tab_timeline:
                             pdf_buf_s, details.get("analyst_name") or "Unknown Analyst"
                         )
                         st.download_button(
-                            label="⬇️ Download Signed PDF",
+                            label="Download Signed PDF",
                             data=signed,
                             file_name=f"triage_{fname}_signed.pdf",
                             mime="application/pdf",
@@ -665,7 +657,7 @@ with tab_timeline:
 
                 # ── Full case package ─────────────────────────────────────────────
                 with exp_col3:
-                    st.markdown("#### 📦 Case Package")
+                    st.markdown("#### Case Package")
                     st.caption("ZIP: signed PDF + JSON + incident report + CoC log")
                     try:
                         case_zip = generate_case_package(
@@ -678,7 +670,7 @@ with tab_timeline:
                             ai_for_export,
                         )
                         st.download_button(
-                            label="⬇️ Download Case Package (.zip)",
+                            label="Download Case Package (.zip)",
                             data=case_zip,
                             file_name=f"case_package_{fname}.zip",
                             mime="application/zip",
@@ -689,7 +681,6 @@ with tab_timeline:
                         st.error(f"Package generation failed: {e}")
 
                 st.caption(
-                    "ℹ️ App components (receivers, services, activities) and URL IoCs are not "
+                    "App components (receivers, services, activities) and URL IoCs are not "
                     "stored in the database — those sections will show 'None' in the exported report."
                 )
-
