@@ -12,6 +12,13 @@ Usage in any page:
     from utils.styles import inject_css, section_header, status_pill, ioc_badge
 
 Call inject_css() once at the top of each page, after st.set_page_config().
+
+FIX: Phosphor Icons CDN <link> is now embedded inside _CSS and injected once
+via inject_css(). Each st.html() call runs in its own sandboxed iframe, so
+repeating the <link> inside every helper was unreliable. The solution is to
+load the font once at page level using a <style>@import</style> trick via a
+<link> tag placed in the main CSS block, which Streamlit hoists to the page
+<head> rather than keeping it scoped to an iframe.
 """
 import streamlit as st
 
@@ -33,22 +40,16 @@ C2_COLOURS = {
 }
 
 # ─── Icon map (Phosphor icon class names) ──────────────────────────────────────
-# Used by helper functions to render consistent icons throughout the UI.
 ICONS = {
-    # Risk levels
     "critical":     "ph-warning-octagon",
     "high":         "ph-warning",
     "medium":       "ph-warning-circle",
     "low":          "ph-check-circle",
     "clean":        "ph-check-circle",
     "unknown":      "ph-question",
-
-    # C2 types
     "telegram":     "ph-paper-plane-tilt",
     "ip":           "ph-globe",
     "url":          "ph-link",
-
-    # Actions / states
     "ok":           "ph-check-circle",
     "warn":         "ph-warning",
     "off":          "ph-minus-circle",
@@ -83,16 +84,22 @@ ICONS = {
     "key":          "ph-key",
 }
 
+# ─── Phosphor Icons CDN URL ────────────────────────────────────────────────────
+_PHOSPHOR_CDN = "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"
 
 # ─── Global CSS ────────────────────────────────────────────────────────────────
+# The Phosphor Icons <link> is included HERE so inject_css() loads it once at
+# page level. Streamlit hoists <link> tags found in st.markdown(unsafe_allow_html)
+# to the page <head>, making the icon font available globally — not scoped to a
+# single iframe the way st.html() content is.
 
-_CSS = """
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
+_CSS = f"""
+<link rel="stylesheet" href="{_PHOSPHOR_CDN}"/>
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
 
-:root {
+:root {{
   --apk-bg:          #0d1117;
   --apk-surface:     #161b22;
   --apk-surface2:    #1c2330;
@@ -116,67 +123,67 @@ _CSS = """
   --radius-sm:       4px;
   --radius-md:       8px;
   --radius-lg:       12px;
-}
+}}
 
 /* Phosphor icon sizing harmonisation */
-.ph-bold {
+.ph-bold {{
   font-size: 14px;
   vertical-align: -2px;
-}
-.ph-bold.ph-lg  { font-size: 18px; vertical-align: -3px; }
-.ph-bold.ph-xl  { font-size: 22px; vertical-align: -4px; }
-.ph-bold.ph-2xl { font-size: 28px; vertical-align: -5px; }
+}}
+.ph-bold.ph-lg  {{ font-size: 18px; vertical-align: -3px; }}
+.ph-bold.ph-xl  {{ font-size: 22px; vertical-align: -4px; }}
+.ph-bold.ph-2xl {{ font-size: 28px; vertical-align: -5px; }}
 
-html, body, [class*="css"] {
+html, body, [class*="css"] {{
   font-family: 'IBM Plex Sans', sans-serif !important;
   color: var(--apk-text) !important;
-}
+}}
 
-.stApp {
+.stApp {{
   background-color: var(--apk-bg) !important;
-}
+}}
 
-.block-container {
+.block-container {{
   padding-top: 5rem !important;
   max-width: 1200px !important;
-}
+}}
 
 /* ── Sidebar ─────────────────────────────────────────────────────────── */
-[data-testid="stSidebar"] {
+[data-testid="stSidebar"] {{
   background-color: var(--apk-surface) !important;
   border-right: 1px solid var(--apk-border) !important;
-}
-[data-testid="stSidebar"] * {
+}}
+[data-testid="stSidebar"] * {{
   color: var(--apk-text) !important;
-}
+}}
 
 /* ── Headings ────────────────────────────────────────────────────────── */
-h1 {
+h1 {{
   font-family: 'IBM Plex Sans', sans-serif !important;
   font-weight: 600 !important;
   font-size: 1.6rem !important;
   letter-spacing: -0.02em !important;
   color: var(--apk-text) !important;
-}
-h2 {
+}}
+h2 {{
   font-family: 'IBM Plex Sans', sans-serif !important;
   font-weight: 500 !important;
   font-size: 1.1rem !important;
   color: var(--apk-text) !important;
   text-transform: none !important;
   letter-spacing: normal !important;
-}
-h3 {
+}}
+h3 {{
   font-family: 'IBM Plex Sans', sans-serif !important;
   font-weight: 500 !important;
   font-size: 0.95rem !important;
   color: var(--apk-muted) !important;
   text-transform: none !important;
   letter-spacing: normal !important;
-}
+}}
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
-.stButton > button {
+.stButton > button {{
   background-color: var(--apk-surface2) !important;
   border: 1px solid var(--apk-border) !important;
   color: var(--apk-text) !important;
@@ -185,14 +192,14 @@ h3 {
   font-size: 13px !important;
   font-weight: 500 !important;
   transition: border-color 0.15s, background-color 0.15s !important;
-}
-.stButton > button:hover {
+}}
+.stButton > button:hover {{
   border-color: var(--apk-accent) !important;
   background-color: rgba(88,166,255,0.08) !important;
-}
+}}
 
 /* ── Download buttons ────────────────────────────────────────────────── */
-.stDownloadButton > button {
+.stDownloadButton > button {{
   background-color: var(--apk-surface2) !important;
   border: 1px solid var(--apk-border) !important;
   color: var(--apk-text) !important;
@@ -202,145 +209,145 @@ h3 {
   font-weight: 500 !important;
   width: 100% !important;
   transition: border-color 0.15s !important;
-}
-.stDownloadButton > button:hover {
+}}
+.stDownloadButton > button:hover {{
   border-color: var(--apk-accent) !important;
   background-color: rgba(88,166,255,0.08) !important;
-}
+}}
 
 /* ── Text inputs & selects ───────────────────────────────────────────── */
 .stTextInput > div > div > input,
-.stSelectbox > div > div {
+.stSelectbox > div > div {{
   background-color: var(--apk-surface2) !important;
   border: 1px solid var(--apk-border) !important;
   border-radius: var(--radius-md) !important;
   color: var(--apk-text) !important;
   font-family: 'IBM Plex Mono', monospace !important;
   font-size: 13px !important;
-}
-.stTextInput > div > div > input:focus {
+}}
+.stTextInput > div > div > input:focus {{
   border-color: var(--apk-accent) !important;
   box-shadow: 0 0 0 3px rgba(88,166,255,0.12) !important;
-}
+}}
 
 /* ── File uploader ───────────────────────────────────────────────────── */
-[data-testid="stFileUploader"] {
+[data-testid="stFileUploader"] {{
   background-color: var(--apk-surface) !important;
   border: 1.5px dashed var(--apk-border) !important;
   border-radius: var(--radius-lg) !important;
   transition: border-color 0.2s !important;
-}
-[data-testid="stFileUploader"]:hover {
+}}
+[data-testid="stFileUploader"]:hover {{
   border-color: var(--apk-accent) !important;
-}
+}}
 
 /* ── Metrics ─────────────────────────────────────────────────────────── */
-[data-testid="stMetric"] {
+[data-testid="stMetric"] {{
   background-color: var(--apk-surface) !important;
   border: 1px solid var(--apk-border) !important;
   border-radius: var(--radius-lg) !important;
   padding: 14px 18px !important;
-}
-[data-testid="stMetricLabel"] {
+}}
+[data-testid="stMetricLabel"] {{
   font-size: 11px !important;
   font-weight: 500 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.06em !important;
   color: var(--apk-muted) !important;
-}
-[data-testid="stMetricValue"] {
+}}
+[data-testid="stMetricValue"] {{
   font-family: 'IBM Plex Mono', monospace !important;
   font-size: 1.2rem !important;
   font-weight: 600 !important;
   color: var(--apk-text) !important;
-}
-[data-testid="stMetricValue"] > div {
+}}
+[data-testid="stMetricValue"] > div {{
   white-space: normal !important;
   word-break: break-all !important;
   line-height: 1.3 !important;
-}
+}}
 
 /* ── Expanders ───────────────────────────────────────────────────────── */
-[data-testid="stExpander"] {
+[data-testid="stExpander"] {{
   background-color: var(--apk-surface) !important;
   border: 1px solid var(--apk-border) !important;
   border-radius: var(--radius-lg) !important;
-}
-[data-testid="stExpander"] summary {
+}}
+[data-testid="stExpander"] summary {{
   font-family: 'IBM Plex Sans', sans-serif !important;
   font-weight: 500 !important;
   font-size: 14px !important;
   color: var(--apk-text) !important;
-}
+}}
 
 /* ── Tabs ────────────────────────────────────────────────────────────── */
-.stTabs [data-baseweb="tab-list"] {
+.stTabs [data-baseweb="tab-list"] {{
   background-color: var(--apk-surface) !important;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
   border-bottom: 1px solid var(--apk-border) !important;
   gap: 0 !important;
-}
-.stTabs [data-baseweb="tab"] {
+}}
+.stTabs [data-baseweb="tab"] {{
   font-family: 'IBM Plex Sans', sans-serif !important;
   font-size: 13px !important;
   font-weight: 500 !important;
   color: var(--apk-muted) !important;
   padding: 10px 20px !important;
   border-bottom: 2px solid transparent !important;
-}
-.stTabs [aria-selected="true"] {
+}}
+.stTabs [aria-selected="true"] {{
   color: var(--apk-accent) !important;
   border-bottom-color: var(--apk-accent) !important;
   background-color: transparent !important;
-}
+}}
 
 /* ── Dataframes ──────────────────────────────────────────────────────── */
-[data-testid="stDataFrame"] {
+[data-testid="stDataFrame"] {{
   border: 1px solid var(--apk-border) !important;
   border-radius: var(--radius-lg) !important;
   overflow: hidden !important;
-}
+}}
 
 /* ── Alerts ──────────────────────────────────────────────────────────── */
-.stAlert {
+.stAlert {{
   border-radius: var(--radius-md) !important;
   border-left-width: 3px !important;
-}
+}}
 
 /* ── Code blocks ─────────────────────────────────────────────────────── */
-code, .stCode {
+code, .stCode {{
   font-family: 'IBM Plex Mono', monospace !important;
   font-size: 12px !important;
   background-color: var(--apk-surface2) !important;
   border: 1px solid var(--apk-border) !important;
   border-radius: var(--radius-sm) !important;
-}
+}}
 
 /* ── Progress bar ────────────────────────────────────────────────────── */
-.stProgress > div > div > div {
+.stProgress > div > div > div {{
   background-color: var(--apk-accent) !important;
   border-radius: var(--radius-sm) !important;
-}
+}}
 
 /* ── Dividers ────────────────────────────────────────────────────────── */
-hr {
+hr {{
   border-color: var(--apk-border) !important;
   margin: 1.5rem 0 !important;
-}
+}}
 
 /* ── Spinner ─────────────────────────────────────────────────────────── */
-.stSpinner > div {
+.stSpinner > div {{
   border-top-color: var(--apk-accent) !important;
-}
+}}
 
 /* ── Caption ─────────────────────────────────────────────────────────── */
-.stCaption, small {
+.stCaption, small {{
   color: var(--apk-muted) !important;
   font-size: 12px !important;
-}
+}}
 
 /* ── Page links ──────────────────────────────────────────────────────── */
-[data-testid="stPageLink"] a {
+[data-testid="stPageLink"] a {{
   background-color: var(--apk-surface2) !important;
   border: 1px solid var(--apk-border) !important;
   border-radius: var(--radius-md) !important;
@@ -351,24 +358,31 @@ hr {
   padding: 8px 16px !important;
   transition: border-color 0.15s !important;
   text-decoration: none !important;
-}
-[data-testid="stPageLink"] a:hover {
+}}
+[data-testid="stPageLink"] a:hover {{
   border-color: var(--apk-accent) !important;
   background-color: rgba(88,166,255,0.08) !important;
-}
+}}
 </style>
 """
 
 
 def inject_css():
     """
-    Injects global dark theme CSS + Phosphor Icons CDN using st.html().
+    Injects global dark theme CSS + Phosphor Icons CDN.
+    Uses st.markdown(unsafe_allow_html=True) so Streamlit hoists the <link>
+    tag into the page <head> — making the icon font available to ALL subsequent
+    st.html() calls on the page, not just the iframe it was injected into.
+
     Call once per page, right after st.set_page_config().
     """
-    st.html(_CSS)
+    st.markdown(_CSS, unsafe_allow_html=True)
 
 
 # ─── Reusable HTML components ──────────────────────────────────────────────────
+# NOTE: All <link rel="stylesheet"> tags have been REMOVED from the individual
+# helper functions below. The Phosphor font is loaded once by inject_css() and
+# is available globally for the rest of the page.
 
 def section_header(title: str, subtitle: str = ""):
     sub_html = (
@@ -392,7 +406,6 @@ def status_pill(label: str, state: str = "ok"):
     }
     bg, fg, icon_class = icon_map.get(state, icon_map["off"])
     st.html(f"""
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <div style='display:inline-flex;align-items:center;gap:6px;
                 padding:4px 10px;border-radius:20px;
                 background:{bg};border:1px solid {fg}44;
@@ -408,7 +421,6 @@ def risk_badge(risk_level: str):
     colour = RISK_COLOURS.get(risk_level, "#95a5a6")
     icon_class = ICONS.get(risk_level.lower(), "ph-question")
     st.html(f"""
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <span style='display:inline-flex;align-items:center;gap:5px;padding:3px 10px;
                  border-radius:20px;background:{colour}22;border:1px solid {colour}55;
                  color:{colour};font-size:11px;font-weight:600;
@@ -425,7 +437,6 @@ def ioc_badge(value: str, ioc_type: str = ""):
     icon_class = ICONS.get(ioc_type, "ph-link")
     safe_val   = value.replace("'", "\\'").replace('"', '&quot;')
     st.html(f"""
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <div style='display:flex;align-items:center;gap:8px;
                 padding:7px 12px;margin:4px 0;
                 background:#161b22;border:1px solid #30363d;
@@ -460,7 +471,6 @@ def permission_card(perm_name: str, description: str, score: int):
         colour, severity = "#f39c12", "LOW"
 
     st.html(f"""
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <div style='display:flex;align-items:flex-start;gap:12px;
                 padding:10px 14px;margin:5px 0;
                 background:#161b22;border:1px solid #30363d;
@@ -499,7 +509,6 @@ def ai_verdict_box(summary: str):
         for p in paragraphs
     )
     st.html(f"""
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <div style='background:#161b22;border:1px solid #30363d;
                 border-left:3px solid #f39c12;border-radius:8px;
                 padding:16px 18px;margin:8px 0'>
@@ -550,7 +559,6 @@ def analysis_stepper(steps: list):
         """)
 
     st.html(f"""
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css"/>
     <div style='display:flex;align-items:flex-start;padding:14px 0;margin:8px 0'>
       {''.join(parts)}
     </div>
