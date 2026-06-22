@@ -1,0 +1,8 @@
+<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer Shield Boundary -->
+  <path d="M24 4L8 11V22C8 33.2 14.8 40.5 24 44C33.2 40.5 40 33.2 40 22V11L24 4Z" fill="#3b82f6"/>
+  <!-- Inner Shield Contrast Layer -->
+  <path d="M24 7L11 13V22C11 31 16.5 37.2 24 41C31.5 37.2 37 31 37 22V13L24 7Z" fill="#131b2e" opacity="0.95"/>
+  <!-- Central Lambda-styled Vector/Crest Core -->
+  <path d="M24 13L16 28H19.5L24 19.5L28.5 28H32L24 13Z" fill="#60a5fa"/>
+</svg>
