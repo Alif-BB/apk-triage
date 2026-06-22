@@ -27,7 +27,7 @@ from core.case_package import generate_case_package
 from core.analyser   import get_likelihood
 from utils.styles import (
     inject_css, section_header, status_pill, risk_badge,
-    ioc_badge, divider_with_label,
+    ioc_badge, divider_with_label, brand_header, sidebar_branding,
 )
 
 init_db()
@@ -99,6 +99,7 @@ def _db_to_gti(details: dict) -> dict | None:
 # ─── Sidebar ──────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
+    sidebar_branding()
     st.header("Settings")
 
     gemini_api_key = st.secrets.get("GEMINI_API_KEY", None)
@@ -120,9 +121,11 @@ with st.sidebar:
             st.success("Database cleared.")
             st.rerun()
 
-st.title("A-Analyzer — Campaign Clustering")
-st.caption("C2 fingerprinting — links APKs that share the same Telegram bot, IP, or URL infrastructure")
-st.divider()
+brand_header(
+    title="Campaign Clustering",
+    subtitle="C2 fingerprinting — links APKs that share the same Telegram bot, IP, or URL infrastructure",
+    badge="A-Analyzer"
+)
 
 # ─── Header Stats ─────────────────────────────────────────────────────────────────
 stats = get_stats()
@@ -141,6 +144,102 @@ if stats["total_apks"] == 0:
         "it will be saved here automatically."
     )
     st.stop()
+
+# ─── Data Visualisation Row ───
+st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+vc1, col_gap, vc2 = st.columns([1.2, 0.08, 1])
+
+with vc1:
+    try:
+        from campaign.db import get_connection
+        conn = get_connection()
+        campaign_rows = conn.execute("SELECT name, apk_count FROM campaigns ORDER BY apk_count DESC LIMIT 10").fetchall()
+        conn.close()
+        campaign_data = [dict(r) for r in campaign_rows]
+    except Exception:
+        campaign_data = []
+
+    if campaign_data:
+        with st.container(border=True):
+            import plotly.graph_objects as go
+            from utils.styles import apply_plotly_theme
+            
+            names = [c["name"] for c in campaign_data]
+            counts = [c["apk_count"] for c in campaign_data]
+            
+            names.reverse()
+            counts.reverse()
+            
+            fig_camp = go.Figure(data=[go.Bar(
+                x=counts,
+                y=names,
+                orientation='h',
+                marker=dict(
+                    color='rgba(78, 162, 255, 0.7)',
+                    line=dict(color='#4ea2ff', width=1.5)
+                ),
+                hovertemplate="<b>%{y}</b><br>Linked Malware APKs: %{x}<extra></extra>"
+            )])
+            fig_camp.update_layout(
+                title=dict(text="Largest Coordinated Scam Campaigns", font=dict(size=13, color="#f1f5f9"), x=0.02, y=0.98),
+                xaxis=dict(title="Linked APK Count", gridcolor="#1c2c47"),
+                yaxis=dict(gridcolor="rgba(0,0,0,0)"),
+                showlegend=False,
+                height=240,
+                margin=dict(l=10, r=10, t=40, b=10)
+            )
+            apply_plotly_theme(fig_camp)
+            st.plotly_chart(fig_camp, use_container_width=True)
+    else:
+        st.info("No campaign clusters formed yet — individual APKs must share at least one C2 indicator to form a campaign.")
+
+with vc2:
+    try:
+        from campaign.db import get_connection
+        conn = get_connection()
+        pivot_rows = conn.execute("SELECT pivot_type, COUNT(*) as cnt FROM campaigns GROUP BY pivot_type").fetchall()
+        conn.close()
+        pivot_data = {r["pivot_type"]: r["cnt"] for r in pivot_rows}
+    except Exception:
+        pivot_data = {}
+
+    if pivot_data:
+        with st.container(border=True):
+            import plotly.graph_objects as go
+            from utils.styles import apply_plotly_theme
+            
+            pivot_labels = []
+            pivot_values = []
+            pivot_colors = []
+            
+            mapping = {
+                "telegram": ("Telegram Bot", "#2980b9"),  # Standard Telegram blue
+                "ip":       ("IP Address",   "#1d4ed8"),  # Royal/cobalt blue
+                "url":      ("Phishing URL", "#60a5fa")   # Soft ice blue
+            }
+            
+            for pt, (label, color) in mapping.items():
+                if pt in pivot_data and pivot_data[pt] > 0:
+                    pivot_labels.append(label)
+                    pivot_values.append(pivot_data[pt])
+                    pivot_colors.append(color)
+                    
+            fig_infra = go.Figure(data=[go.Pie(
+                labels=pivot_labels,
+                values=pivot_values,
+                hole=.4,
+                marker=dict(colors=pivot_colors, line=dict(color="#131b2e", width=2)),
+                textinfo="percent+label",
+                hovertemplate="<b>%{label}</b><br>Active Campaigns: %{value}<br>Percentage: %{percent}<extra></extra>"
+            )])
+            fig_infra.update_layout(
+                title=dict(text="C2 Infrastructure Types", font=dict(size=13, color="#f1f5f9"), x=0.02, y=0.98),
+                showlegend=False,
+                height=240,
+                margin=dict(l=10, r=10, t=40, b=10)
+            )
+            apply_plotly_theme(fig_infra)
+            st.plotly_chart(fig_infra, use_container_width=True)
 
 st.divider()
 
@@ -292,8 +391,8 @@ with tab_graph:
         <head>
           <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.6/dist/vis-network.min.js"></script>
           <link  href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.6/dist/vis-network.min.css" rel="stylesheet"/>
-          <style>body{{margin:0;background:#0d1117}}
-          #graph{{width:100%;height:580px;border:1px solid #30363d;border-radius:8px}}</style>
+          <style>body{{margin:0;background:#0b0f19}}
+          #graph{{width:100%;height:580px;border:1px solid #243656;border-radius:8px}}</style>
         </head>
         <body><div id="graph"></div>
         <script>
@@ -361,8 +460,8 @@ with tab_timeline:
         if not selected_rows:
             st.html("""
             <div style='text-align:center;padding:28px;margin-top:8px;
-                        background:#161b22;border:1px dashed #30363d;border-radius:8px;
-                        color:#7d8590;font-family:IBM Plex Sans,sans-serif;font-size:13px'>
+                        background:#131b2e;border:1px dashed #243656;border-radius:8px;
+                        color:#94a3b8;font-family:IBM Plex Sans,sans-serif;font-size:13px'>
               Click any row in the table above to view full scan details
             </div>
             """)
@@ -392,11 +491,11 @@ with tab_timeline:
                 st.html(f"""
                 <div style="display:flex;align-items:center;gap:14px;
                             padding:14px 18px;margin-bottom:4px;
-                            background:#161b22;border:1px solid #30363d;
+                            background:#131b2e;border:1px solid #243656;
                             border-left:4px solid {risk_color};border-radius:8px">
                   <div style="flex:1;min-width:0">
                     <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;
-                                font-weight:600;color:#e6edf3;margin-bottom:3px;
+                                font-weight:600;color:#f1f5f9;margin-bottom:3px;
                                 word-break:break-all">{details['package']}</div>
                     <div style="font-size:12px;color:#7d8590">
                       Scan #{details['id']}
@@ -465,9 +564,9 @@ with tab_timeline:
                             for p in perms:
                                 st.markdown(
                                     f"<div style='padding:5px 10px;margin:3px 0;"
-                                    f"background:#1c2330;border-left:3px solid #e74c3c;"
+                                    f"background:#1e2942;border-left:3px solid #e74c3c;"
                                     f"border-radius:4px;font-family:IBM Plex Mono,monospace;"
-                                    f"font-size:12px;color:#e6edf3'>{p}</div>",
+                                    f"font-size:12px;color:#f1f5f9'>{p}</div>",
                                     unsafe_allow_html=True,
                                 )
                         else:
@@ -486,13 +585,13 @@ with tab_timeline:
                                 st.html(f"""
                                 <div style='display:flex;align-items:center;gap:8px;
                                             padding:6px 10px;margin:3px 0;
-                                            background:#161b22;border:1px solid #30363d;
+                                            background:#131b2e;border:1px solid #243656;
                                             border-left:3px solid {colour};border-radius:5px'>
                                   <span style='color:{colour};font-size:10px;font-weight:600;
                                                background:{colour}22;padding:1px 5px;
                                                border-radius:3px;font-family:IBM Plex Mono,monospace;
                                                white-space:nowrap'>{label}</span>
-                                  <span style='color:#e6edf3;font-family:IBM Plex Mono,monospace;
+                                  <span style='color:#f1f5f9;font-family:IBM Plex Mono,monospace;
                                                font-size:12px;word-break:break-all'>{ioc['ioc_value']}</span>
                                 </div>
                                 """)
@@ -532,14 +631,14 @@ with tab_timeline:
                         for p in paragraphs
                     )
                     st.html(f"""
-                    <div style='background:#161b22;border:1px solid #30363d;
+                    <div style='background:#131b2e;border:1px solid #243656;
                                 border-left:3px solid #f39c12;border-radius:8px;
                                 padding:14px 16px;margin:4px 0'>
                       <div style='font-size:10px;font-weight:600;color:#f39c12;
                                   text-transform:uppercase;letter-spacing:0.08em;
                                   margin-bottom:10px;font-family:IBM Plex Sans,sans-serif'>
                         AI Analyst Verdict &nbsp;·&nbsp;
-                        <span style='font-weight:400;color:#7d8590'>
+                        <span style='font-weight:400;color:#94a3b8'>
                           AI-generated — not a definitive forensic finding
                         </span>
                       </div>
@@ -560,9 +659,9 @@ with tab_timeline:
                 else:
                     if gemini_api_key:
                         st.html("""
-                        <div style='padding:14px 16px;background:#161b22;
-                                    border:1px dashed #30363d;border-radius:8px;
-                                    color:#7d8590;font-size:13px;
+                        <div style='padding:14px 16px;background:#131b2e;
+                                    border:1px dashed #243656;border-radius:8px;
+                                    color:#94a3b8;font-size:13px;
                                     font-family:IBM Plex Sans,sans-serif'>
                           No AI verdict was generated when this APK was originally scanned.
                           Click the button below to generate one now.
@@ -577,9 +676,9 @@ with tab_timeline:
                             st.rerun()
                     else:
                         st.html("""
-                        <div style='padding:12px 16px;background:#161b22;
-                                    border:1px solid #30363d;border-radius:8px;
-                                    color:#7d8590;font-size:13px;
+                        <div style='padding:12px 16px;background:#131b2e;
+                                    border:1px solid #243656;border-radius:8px;
+                                    color:#94a3b8;font-size:13px;
                                     font-family:IBM Plex Sans,sans-serif'>
                           AI verdicts not configured — add a Gemini API key to
                           <code>.streamlit/secrets.toml</code>.

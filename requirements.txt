@@ -8,3 +8,5 @@ pyhanko
 pyhanko-certvalidator
 cryptography
 pandas
+plotly
+psycopg2-binary
