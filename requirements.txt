@@ -8,3 +8,4 @@ pyhanko
 pyhanko-certvalidator
 cryptography
 pandas
+plotly

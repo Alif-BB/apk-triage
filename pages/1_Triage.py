@@ -14,7 +14,7 @@ from campaign.store     import save_scan
 from utils.styles       import (
     inject_css, section_header, status_pill, risk_badge,
     ioc_badge, permission_card, divider_with_label,
-    ai_verdict_box, analysis_stepper,
+    ai_verdict_box, analysis_stepper, brand_header, sidebar_branding
 )
 
 init_db()
@@ -36,13 +36,16 @@ st.set_page_config(
 
 inject_css()
 
-st.title("A-Analyzer — APK Triage Tool")
-st.caption("Static analysis + VirusTotal enrichment for Malaysian financial scam APKs")
-st.divider()
+brand_header(
+    title="APK Triage Tool",
+    subtitle="Static analysis & VirusTotal intelligence enrichment for Malaysian financial scam APKs",
+    badge="A-Analyzer"
+)
 
 # ─── Sidebar ─────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
+    sidebar_branding()
     st.header("Settings")
 
     # ── Analyst Identity
@@ -206,9 +209,9 @@ if uploaded_file:
                         background-color:{risk_color}22; border:2px solid {risk_color}'>
                 <div style='font-size:48px; font-weight:bold; color:{risk_color}'>{risk_level}</div>
                 <div style='font-size:32px; font-weight:bold; color:{risk_color}'>{likelihood}%</div>
-                <div style='font-size:13px; color:#aaa; margin-top:2px'>likelihood of malicious behaviour</div>
-                <div style='font-size:11px; color:#666; margin-top:6px'>raw score: {result["score"]} / 300</div>
-                <div style='font-size:13px; color:#888; margin-top:6px'>
+                <div style='font-size:13px; color:#e2e8f0; margin-top:2px'>likelihood of malicious behaviour</div>
+                <div style='font-size:11px; color:#94a3b8; margin-top:6px'>raw score: {result["score"]} / 300</div>
+                <div style='font-size:13px; color:#cbd5e1; margin-top:6px'>
                     {"VirusTotal enriched" if gti else "Static analysis only"}
                 </div>
             </div>
