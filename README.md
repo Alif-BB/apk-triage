@@ -1,6 +1,6 @@
-# 🔍 APK Triage Tool
+# 🔍 A-Analyzer: APK Triage & Threat Intelligence Tool
 
-> Static analysis · Google Threat Intelligence · Campaign Clustering  
+> Static analysis · Google Threat Intelligence (VirusTotal) · Campaign Clustering  
 > Built for **PDRM · BNM · CyberSecurity Malaysia** investigators tackling Malaysian mobile banking fraud (Macau scams, fake banking apps, SMS stealers).
 
 ---
@@ -14,31 +14,32 @@
 5. [Installation](#installation)
 6. [Configuration](#configuration)
 7. [Running the App](#running-the-app)
-8. [Usage Guide](#usage-guide)
-   - [Triage Page](#triage-page)
-   - [Campaign Clustering Page](#campaign-clustering-page)
-9. [Case Package Contents](#case-package-contents)
-10. [How Campaign Clustering Works](#how-campaign-clustering-works)
-11. [Risk Scoring](#risk-scoring)
-12. [IoC Extraction & False Positive Filtering](#ioc-extraction--false-positive-filtering)
-13. [Database Schema](#database-schema)
-14. [Testing](#testing)
-15. [Submission Contacts](#submission-contacts)
-16. [Limitations & Roadmap](#limitations--roadmap)
-17. [Disclaimer](#disclaimer)
+8. [Database Engine & Dynamic Routing](#database-engine--dynamic-routing)
+9. [Database Migration Guide](#database-migration-guide)
+10. [Database Schema](#database-schema)
+11. [Usage Guide](#usage-guide)
+12. [Case Package Contents](#case-package-contents)
+13. [How Campaign Clustering Works](#how-campaign-clustering-works)
+14. [Risk Scoring](#risk-scoring)
+15. [IoC Extraction & False Positive Filtering](#ioc-extraction--false-positive-filtering)
+16. [Deployment & Developer Workflow](#deployment--developer-workflow)
+17. [Testing & Verification](#testing--verification)
+18. [Submission Contacts](#submission-contacts)
+19. [Limitations & Roadmap](#limitations--roadmap)
+20. [Disclaimer](#disclaimer)
 
 ---
 
 ## Overview
 
-APK Triage is a forensic analysis tool that enables law enforcement and financial institution security teams to rapidly assess suspicious Android APKs distributed as part of Malaysian financial scams.
+A-Analyzer is a forensic triage and threat intelligence tool that enables law enforcement and financial institution security teams to rapidly assess suspicious Android APKs distributed as part of Malaysian financial scams.
 
 A single APK upload produces:
-- A **risk score** based on dangerous permissions, C2 indicators, and VirusTotal reputation
-- A **court-ready case package** (digitally signed PDF, JSON evidence, BNMLINK template, chain-of-custody log)
-- Automatic **campaign clustering** — linking APKs that share the same Telegram bot or IP address to identify coordinated syndicate operations
+- A weighted **risk score** based on dangerous permissions, SMS broadcast receivers, hardcoded C2 infrastructure, and VirusTotal reputation.
+- A **court-ready case package** (including a digitally signed PDF, structured JSON evidence, pre-filled BNMLINK template, and a chronological chain-of-custody log).
+- Automatic **campaign clustering** — dynamically linking separate APKs that share identical C2 infrastructure (such as Telegram bot tokens or hardcoded IP addresses) to identify coordinated syndicate operations.
 
-All analysis is performed **locally**. The only data sent externally is the APK's SHA-256 hash (and hardcoded IPs/URLs) to VirusTotal — the APK binary itself never leaves your machine.
+All decompilation and static parsing are performed **locally** on your analysis workstation. The only data sent externally is the APK's SHA-256 hash (to check VirusTotal reputation) and AI prompt queries if Gemini enrichment is active. The raw APK binary itself never leaves your machine.
 
 ---
 
@@ -47,27 +48,26 @@ All analysis is performed **locally**. The only data sent externally is the APK'
 ### 🔍 Feature 1 — APK Triage & Automated Case Package
 | Capability | Detail |
 |---|---|
-| Static analysis | Permissions, receivers, services, activities, hardcoded strings |
-| Risk scoring | Weighted scoring across permissions, SMS receivers, Telegram C2, hardcoded IPs |
-| GTI enrichment | VirusTotal hash + IP + URL reputation via `vt-py` |
-| AI verdict | Gemini-powered 3-paragraph plain-English summary for non-technical investigators |
-| Evidence integrity | MD5, SHA-1, SHA-256 computed and embedded in all exports |
-| Signed PDF report | ReportLab + pyhanko digital signature (court-admissible) |
-| JSON evidence file | Structured machine-readable evidence for SIEM / case management |
-| BNMLINK template | Pre-filled incident report for BNMLINK / Cyber999 / PDRM CCID submission |
-| Chain of custody | Timestamped CSV log of every action taken on the evidence |
-| One-click ZIP | All of the above bundled into a single case package download |
+| **Static analysis** | Extracts permissions, intent receivers, background services, activities, and embedded string constants. |
+| **Risk scoring** | Applies weighted risk scores across suspicious permissions, accessibility bindings, SMS stealers, and C2 indicators. |
+| **GTI enrichment** | Queries VirusTotal hash, IP, and URL reputations on-demand using the asynchronous `vt-py` SDK. |
+| **AI verdict** | Synthesizes Gemini AI-driven 3-paragraph executive summaries for non-technical prosecutors and investigators. |
+| **Evidence integrity** | Computes MD5, SHA-1, and SHA-256 hashes, embedding them in all exported materials to preserve evidentiary value. |
+| **Signed PDF report** | Formats professional PDF briefs with ReportLab and adds verifiable digital signatures using `pyhanko`. |
+| **JSON evidence file** | Exposes structured machine-readable analysis data for SIEM ingestion and case management. |
+| **BNMLINK template** | Pre-fills incident response templates for Bank Negara Malaysia (BNMLINK), MyCERT, or PDRM CCID. |
+| **Chain of custody** | Compiles a timestamped chronological CSV log recording every action taken on the evidence files. |
+| **One-click ZIP** | Bundles the complete court-ready case package into a single, structured archive for download. |
 
 ### 🕸️ Feature 2 — Campaign Clustering
 | Capability | Detail |
 |---|---|
-| Auto-save | Every APK analysis is automatically saved to a local SQLite database |
-| C2 fingerprinting | Extracts Telegram bot tokens and hardcoded IPs as campaign pivot indicators |
-| Auto-clustering | APKs sharing an identical C2 indicator are automatically grouped into a campaign |
-| Campaign table | Filterable list of campaigns with member APK drilldown |
-| Network graph | Interactive vis.js graph — APK nodes linked to C2 nodes, coloured by risk level |
-| Timeline | All scans newest-first with score progress bar |
-| Analyst actions | Rename campaigns, delete stale scans |
+| **Seamless auto-save** | Automatically logs every APK analysis record to the database upon upload. |
+| **C2 fingerprinting** | Parses DEX bytecode strings to isolate Telegram bot tokens, t.me URLs, and hardcoded IPv4 addresses. |
+| **Auto-clustering** | Dynamically groups separate APKs sharing identical C2 pivot points under unique campaign designations. |
+| **Interactive network graph**| Renders a premium, dynamic web-graph mapping APKs (coloured by risk) to their shared C2 nodes. |
+| **Intelligence timeline** | Displays a historical ledger of analyzed files ordered newest-first with visual score progress meters. |
+| **Analyst actions** | Permits manual renaming of campaign clusters (e.g. "Operation Maybank Ghost") and pruning stale entries. |
 
 ---
 
@@ -78,46 +78,57 @@ apk-triage/
 │
 ├── dashboard.py                  ← Home / landing page (Streamlit entry point)
 │
+├── DEVELOPMENT_WORKFLOW.md       ← Step-by-step developer guide for update deployments
+├── README.md                     ← This main documentation file
+├── app_icon.svg                  ← Standalone vector logo asset
+│
+├── .streamlit/
+│   ├── config.toml               ← Streamlit styling and server configuration
+│   └── secrets.toml              ← Local API keys & DB configuration (gitignored)
+│
 ├── pages/
-│   ├── 1_🔍_Triage.py           ← APK upload, analysis, case package export
-│   └── 2_🕸️_Campaigns.py        ← Campaign clustering UI
+│   ├── 1_🔍_Triage.py           ← Forensic APK upload, analysis, and case ZIP packaging
+│   └── 2_🕸️_Campaigns.py        ← Campaign clustering, dynamic timeline, and network graph
 │
 ├── core/
 │   ├── __init__.py
-│   ├── analyser.py               ← APK parsing, hashing, IoC extraction, risk scoring
-│   ├── gti.py                    ← VirusTotal / GTI API calls
-│   ├── ai.py                     ← Gemini AI verdict generation
-│   ├── pdf_report.py             ← ReportLab PDF + pyhanko digital signing
-│   └── case_package.py           ← JSON evidence, BNMLINK template, CoC CSV, ZIP bundler
+│   ├── analyser.py               ← APK parsing, decompilation, IoC extraction, and risk math
+│   ├── gti.py                    ← VirusTotal / GTI API integration
+│   ├── ai.py                     ← Gemini AI text synthesis helper
+│   ├── pdf_report.py             ← ReportLab layout compiler + pyhanko cryptographic signer
+│   └── case_package.py           ← Structured JSON, pre-filled submission files, and ZIP packager
 │
 ├── campaign/
 │   ├── __init__.py
-│   ├── db.py                     ← SQLite schema + connection helpers
-│   ├── store.py                  ← Save scan results, auto-cluster by C2
-│   └── cluster.py                ← Query logic for campaigns, graph, timeline
+│   ├── db.py                     ← Dual SQLite/Postgres DB driver with custom compatibility wrappers
+│   ├── store.py                  ← Analysis database insert/update logic and campaign grouping
+│   └── cluster.py                ← Graph modeling, campaign statistics, and chronological timelines
 │
 ├── data/
-│   └── campaign.db               ← SQLite database (auto-created, gitignored)
+│   └── campaign.db               ← Local SQLite database (fallback; auto-created, gitignored)
 │
-├── .streamlit/
-│   └── secrets.toml              ← API keys (gitignored — never commit this)
+├── scripts/
+│   └── migrate_data.py           ← Offline-to-Cloud (SQLite to Supabase Postgres) migration script
 │
-├── test_campaign.py              ← Unit tests for campaign logic
-├── .gitignore
-├── requirements.txt
-└── README.md
+├── utils/
+│   ├── __init__.py
+│   └── styles.py                 ← Premium UI components, brand colors, custom metrics, and fonts
+│
+├── decode.py                     ← Helper utility to XOR-decode obfuscated APK strings
+├── requirements.txt              ← Python packaging dependencies
+└── venv/                         ← Local Python virtual environment
 ```
 
 ---
 
 ## Prerequisites
 
-| Requirement | Version |
+| Requirement | Recommended Version |
 |---|---|
-| Python | 3.10 or higher |
-| Operating System | Linux recommended (Kali, Ubuntu) — tested on Kali Linux in VMware |
-| VirusTotal API key | Free tier (500 req/day) — https://virustotal.com |
-| Google Gemini API key | Optional — enables AI verdicts |
+| **Python** | `3.10` or higher |
+| **Operating System** | macOS or Linux (tested on Kali Linux / Ubuntu) |
+| **VirusTotal API Key** | Free tier (500 queries/day) — register at [virustotal.com](https://virustotal.com) |
+| **Google Gemini API Key** | Optional — generates executive AI summaries at [aistudio.google.com](https://aistudio.google.com) |
 
 ---
 
@@ -132,392 +143,296 @@ cd apk-triage
 python3 -m venv venv
 source venv/bin/activate
 
-# 3. Install dependencies
+# 3. Install core and driver dependencies
 pip install -r requirements.txt
-```
-
-### `requirements.txt`
-
-```
-streamlit
-androguard
-vt-py
-google-generativeai
-loguru
-reportlab
-pyhanko
-pyhanko-certvalidator
-cryptography
-pandas
 ```
 
 ---
 
 ## Configuration
 
-Create the Streamlit secrets file — this is already listed in `.gitignore` so it will never be committed:
+Create the local Streamlit secrets file (already added to `.gitignore` so it will never be committed to Git):
 
 ```bash
 mkdir -p .streamlit
 nano .streamlit/secrets.toml
 ```
 
-Add your API keys:
+Populate the secrets file with your API keys and optional database connection credentials:
 
 ```toml
 # .streamlit/secrets.toml
 
 # VirusTotal / Google Threat Intelligence
-# Get a free key at: https://www.virustotal.com/gui/join-us
 VT_API_KEY = "your_virustotal_api_key_here"
 
-# Google Gemini (optional — enables AI verdicts)
-# Get a key at: https://aistudio.google.com/app/apikey
+# Google Gemini (Optional — enables AI summaries)
 GEMINI_API_KEY = "your_gemini_api_key_here"
+
+# Supabase PostgreSQL (Optional — activates Cloud Shared Database)
+# Use the Connection Pooler URL (Port 6543) for best IPv4/IPv6 compatibility
+SUPABASE_DB_URL = "postgresql://postgres.yourref:yourpassword@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
 ```
 
-If `secrets.toml` is not present or a key is missing:
-- **VT_API_KEY** — the tool falls back to a password input field in the sidebar
-- **GEMINI_API_KEY** — AI verdict section is hidden with a notice to contact admin
+If `secrets.toml` is not present or keys are missing:
+* **`VT_API_KEY`**: The application will show a sidebar password text-input field where analysts can paste their API keys temporarily.
+* **`GEMINI_API_KEY`**: The executive summary section will display a helpful administrative configuration notice.
+* **`SUPABASE_DB_URL`**: The database transparently switches to the local SQLite database at `data/campaign.db`.
 
 ---
 
 ## Running the App
 
 ```bash
-# Activate venv first if not already active
+# Activate your virtual environment first
 source venv/bin/activate
 
-# Launch the app
+# Launch the Streamlit server
 streamlit run dashboard.py
 ```
 
-The app opens at `http://localhost:8501` in your browser. Use the sidebar to navigate between pages.
+The application opens automatically at `http://localhost:8501` in your browser.
 
 ---
 
-## Usage Guide
+## Database Engine & Dynamic Routing
 
-### Triage Page
+A-Analyzer is equipped with a **Dual-Driver Database Architecture** built into `campaign/db.py`:
 
-1. **Fill in analyst details** in the sidebar — name, badge number, unit/organisation, case reference number, and document classification. These are embedded in all exported files for chain-of-custody purposes.
+```mermaid
+graph TD
+    A[Streamlit App Startup] --> B{SUPABASE_DB_URL configured?}
+    B -->|Yes - Cloud / Production| C[Connect to Supabase PostgreSQL]
+    B -->|No - Local / Offline| D[Connect to Local SQLite campaign.db]
+    C --> E[PostgresCursorWrapper handles ? and SQLite syntax]
+    D --> F[Standard sqlite3 library handles queries]
+```
 
-2. **Upload an APK** using the file uploader. Supported: `.apk` files only.
+### 1. Connection Pooler Configuration (IPv4 Port 6543)
+Direct connections to Supabase PostgreSQL instances (`db.[ref].supabase.co` on port `5432`) are IPv6-only by default. In local networks or ISP configurations without active IPv6 routing, direct connections throw `nodename nor servname provided, or not known`.
+* **Solution**: Always use Supabase's **Connection Pooler** URL on port **`6543`**. This pooler operates perfectly over IPv4 networks.
 
-3. The tool runs automatically in sequence:
-   - Static analysis (permissions, IoCs, risk scoring)
-   - GTI enrichment via VirusTotal (if API key is configured)
-   - AI verdict via Gemini (if API key is configured)
-   - Auto-save to the campaign database
+### 2. Automatic Password Sanitization
+Database passwords with special characters (such as `#`, `@`, or `:`) throw driver parsing errors in standard libpq/psycopg2.
+* **Solution**: The application implements `sanitize_db_url(url)` to isolate the credentials segment and safely URL-encode password components automatically behind the scenes.
 
-4. Review the results — risk gauge, evidence integrity hashes, GTI detections, permissions, IoCs, and app components.
-
-5. **Download the Case Package** (ZIP) for a complete court-ready evidence bundle, or download individual files (PDF, JSON, incident report, CoC log).
-
-> ⚠️ If no analyst name is entered, a warning is shown. All exported files will show "Not specified" in the analyst field.
-
----
-
-### Campaign Clustering Page
-
-Navigate to **🕸️ Campaigns** in the sidebar after analysing at least one APK.
-
-**Header stats** show total APKs in the database, number of campaigns detected, critical-risk APKs, unique Telegram C2s, and unique IP-based C2s.
-
-**Campaigns tab:**
-- Filter by C2 type (All / Telegram / IP)
-- Each campaign shows its pivot indicator, first/last seen dates, and APK count
-- Expand a campaign to see all linked APKs in a table
-- Rename a campaign to reflect intelligence findings (e.g. "Operation Maybank Ghost")
-- Delete individual scans from the database
-
-**Network Graph tab:**
-- APK nodes (circles) coloured by risk level: 🔴 CRITICAL · 🟠 HIGH · 🟡 MEDIUM · 🟢 LOW
-- C2 nodes (diamonds) coloured by type: 🔵 Telegram · 🟣 IP · 🟢 URL
-- APKs connected to the same C2 node belong to the same campaign
-- Hover over any node for details (package name, risk score, SHA-256, analyst)
-- Drag, zoom, and pan to explore the graph
-
-**Timeline tab:**
-- All scans ordered newest-first
-- Score shown as a visual progress bar
-- GTI detection count and threat label visible at a glance
+### 3. Syntax Adapters
+To keep application-level queries database-agnostic, `campaign/db.py` implements transparent cursor and connection wrappers (`PostgresConnectionWrapper`, `PostgresCursorWrapper`):
+* Translates parameters dynamically (`?` parameters are swapped to `%s`).
+* Adapts transaction conflicts (`INSERT OR IGNORE` matches are updated to PostgreSQL's `ON CONFLICT DO NOTHING`).
+* Directs SQLite `.lastrowid` access queries to Postgres-native `SELECT LASTVAL()` sequences.
+* Guarantees identical dictionary row access with `psycopg2.extras.DictCursor`.
 
 ---
 
-## Case Package Contents
+## Database Migration Guide
 
-Each downloaded `.zip` contains:
+If you have been analyzing APKs locally using the SQLite backend and wish to push your history, campaigns, and indicators into your shared cloud Supabase PostgreSQL server, use the integrated migration utility:
 
-| File | Purpose |
-|---|---|
-| `triage_report_*_signed.pdf` | Court-ready forensic report with embedded digital signature. Verifiable in Adobe Acrobat. |
-| `evidence_*.json` | Structured machine-readable evidence. Suitable for SIEM ingestion, case management systems, or inter-agency sharing. |
-| `incident_report_template_*.txt` | Pre-filled incident report for submission to BNMLINK, Cyber999, or PDRM CCID. Fill in victim details before sending. |
-| `chain_of_custody_*.csv` | Timestamped log of every action taken on the evidence (received → hashed → analysed → GTI queried → report generated). |
-| `README.txt` | Submission contacts and file guide. |
+```bash
+# 1. Activate environment
+source venv/bin/activate
 
-> The PDF is signed with a self-signed certificate generated on first run and stored at `~/.apktriage_signer.p12`. For formal court submission, replace this with an agency-issued PKI certificate.
+# 2. Set your destination database URL in .streamlit/secrets.toml
+# 3. Run the migration script
+python scripts/migrate_data.py
+```
 
----
-
-## How Campaign Clustering Works
-
-Campaign clustering is based on **exact C2 indicator matching** across APKs.
-
-### Step 1 — IoC Extraction
-Androguard reads every string constant embedded in the APK's DEX bytecode. Four regex patterns are applied:
-
-| Pattern | Matches |
-|---|---|
-| `TELEGRAM_PATTERN` | Telegram bot tokens (`bot<id>:<token>`) and `t.me/` links |
-| `IP_PATTERN` | IPv4 addresses — filtered against a comprehensive exclusion list |
-| `URL_PATTERN` | HTTP/HTTPS URLs — filtered against Android/SDK namespace noise |
-| `KEYWORD_PATTERN` | Malaysian bank names, TAC, OTP, transaction |
-
-### Step 2 — Normalisation & Storage
-Each IoC is stored as a separate row in the `c2_indicators` table, linked to the APK scan by `scan_id`.
-
-### Step 3 — Auto-Clustering
-For each extracted IoC, the tool checks whether a campaign already exists for that exact value:
-- **Yes** → `apk_count + 1`, `last_seen` updated
-- **No** → new campaign row created with an auto-generated name
-
-Two APKs are considered part of the same campaign when they share an **identical `ioc_value`** — for example, the same Telegram bot token or the same hardcoded IP address.
-
-### Campaign Pivot Types
-| Type | Signal strength | Rationale |
-|---|---|---|
-| Telegram token | 🔴 Very strong | Unique per bot, directly operator-controlled, almost never a false positive |
-| IP address | 🟠 Strong | Hardcoded C2 server IPs after private/loopback/multicast exclusion |
-| URL | Not used as pivot | Too noisy — URLs still shown in triage report for analyst review |
-
----
-
-## Risk Scoring
-
-| Score | Level | Meaning |
-|---|---|---|
-| 0 | CLEAN | No suspicious indicators |
-| 1–29 | LOW | Minor indicators, likely benign |
-| 30–59 | MEDIUM | Multiple indicators, manual review recommended |
-| 60–89 | HIGH | Strong malicious indicators |
-| 90+ | CRITICAL | Confirmed malware pattern — matches Malaysian financial scam profile |
-
-### Score Contributors
-
-| Indicator | Points |
-|---|---|
-| `RECEIVE_SMS` permission | +50 |
-| `BIND_ACCESSIBILITY_SERVICE` permission | +30 |
-| `READ_SMS` permission | +25 |
-| `SYSTEM_ALERT_WINDOW` permission | +25 |
-| SMS-related broadcast receiver | +25 |
-| `SEND_SMS` permission | +20 |
-| `REQUEST_INSTALL_PACKAGES` permission | +20 |
-| Per hardcoded IP address | +20 |
-| `READ_CONTACTS` permission | +15 |
-| `RECORD_AUDIO` permission | +15 |
-| `PROCESS_OUTGOING_CALLS` permission | +15 |
-| `READ_CALL_LOG` permission | +15 |
-| BOOT receiver | +15 |
-| `CAMERA` permission | +10 |
-| Banking keywords (TAC/OTP/bank names) | +10 |
-| Per Telegram C2 indicator | +40 |
-| GTI: >20 AV engines flagged | +50 |
-| GTI: 6–20 AV engines flagged | +30 |
-| GTI: 1–5 AV engines flagged | +15 |
-| GTI: confirmed malicious IP | +20 each |
-| GTI: confirmed malicious URL | +10 each |
-
----
-
-## IoC Extraction & False Positive Filtering
-
-### IP Addresses — Excluded ranges
-The following are automatically excluded from IoC extraction and campaign clustering:
-
-- Loopback: `127.0.0.0/8`
-- Unspecified: `0.x.x.x`
-- Broadcast: `255.x.x.x`
-- Private RFC1918: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
-- Link-local: `169.254.0.0/16`
-- Multicast: `224.0.0.0/4`
-- Android emulator: `10.0.2.2`, `10.0.2.15`, `10.0.3.2`
-- Google Public DNS: `8.8.8.8`, `8.8.4.4`
-- Cloudflare DNS: `1.1.1.1`, `1.0.0.1`
-- RFC5737 documentation: `192.0.2.x`, `198.51.100.x`, `203.0.113.x`
-- Version-like strings: `1.0.0.0`, `0.0.0.1`
-- Malformed addresses
-
-### URLs — Excluded prefixes
-Namespace URIs and SDK reference strings are filtered out, including:
-`schemas.android.com`, `www.w3.org`, `developer.android.com`, `firebase.google.com`, `play.google.com`, `graph.facebook.com`, `maven.apache.org`, and others.
-
-URLs remain visible in the triage report for analyst review but are **not used as campaign clustering pivots**.
+The script will:
+1. Verify connection credentials and establish conduits with both engines.
+2. Initialize tables on the remote PostgreSQL backend if they don't exist yet.
+3. Migrate `apk_scans`, `c2_indicators`, and `campaigns` records while handling duplicates automatically.
+4. Align PostgreSQL's primary key index sequences with `setval(pg_get_serial_sequence(), ...)` to prevent future insertion collisions.
 
 ---
 
 ## Database Schema
 
-SQLite database located at `data/campaign.db` (auto-created on first run).
+The database relies on three main normalized tables:
 
-```sql
--- One row per analysed APK
-CREATE TABLE apk_scans (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    package       TEXT    NOT NULL,
-    version       TEXT,
-    sha256        TEXT    NOT NULL UNIQUE,  -- duplicate prevention
-    md5           TEXT,
-    sha1          TEXT,
-    risk_score    INTEGER NOT NULL DEFAULT 0,
-    risk_level    TEXT    NOT NULL DEFAULT 'UNKNOWN',
-    min_sdk       TEXT,
-    target_sdk    TEXT,
-    analyst_name  TEXT,
-    analyst_org   TEXT,
-    case_number   TEXT,
-    gti_malicious INTEGER DEFAULT 0,
-    gti_total     INTEGER DEFAULT 0,
-    gti_threat    TEXT,
-    ai_verdict    TEXT,
-    scanned_at    TEXT    NOT NULL,
-    keywords      TEXT,   -- JSON array
-    permissions   TEXT    -- JSON array (dangerous only)
-);
+### 1. `apk_scans`
+Stores core metadata and risk scores for each analyzed file.
 
--- Normalised C2 indicators (one row per IoC per APK)
-CREATE TABLE c2_indicators (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    scan_id    INTEGER NOT NULL REFERENCES apk_scans(id) ON DELETE CASCADE,
-    ioc_type   TEXT    NOT NULL,  -- 'telegram' | 'ip'
-    ioc_value  TEXT    NOT NULL,
-    UNIQUE(scan_id, ioc_type, ioc_value)
-);
+| Column | Type (SQLite) | Type (PostgreSQL) | Description |
+|---|---|---|---|
+| **`id`** | `INTEGER PRIMARY KEY` | `SERIAL PRIMARY KEY` | Unique ID for each scan. |
+| **`package`** | `TEXT NOT NULL` | `TEXT NOT NULL` | Android app package ID. |
+| **`version`** | `TEXT` | `TEXT` | App version string. |
+| **`sha256`** | `TEXT NOT NULL UNIQUE`| `TEXT NOT NULL UNIQUE` | File SHA-256 (prevents duplicates). |
+| **`md5`** | `TEXT` | `TEXT` | File MD5 hash. |
+| **`sha1`** | `TEXT` | `TEXT` | File SHA-1 hash. |
+| **`risk_score`**| `INTEGER NOT NULL` | `INTEGER NOT NULL` | Final calculated risk level (0-100). |
+| **`risk_level`**| `TEXT NOT NULL` | `TEXT NOT NULL` | Human-readable score band label. |
+| **`analyst_name`**| `TEXT` | `TEXT` | Forensic analyst's identity. |
+| **`gti_malicious`**| `INTEGER DEFAULT 0`| `INTEGER DEFAULT 0` | VirusTotal malicious flags. |
+| **`gti_threat`**| `TEXT` | `TEXT` | Detected family or threat category. |
+| **`ai_verdict`**| `TEXT` | `TEXT` | Gemini summary text block. |
+| **`scanned_at`**| `TEXT NOT NULL` | `TEXT NOT NULL` | ISO timestamp of the analysis. |
+| **`permissions`**| `TEXT` | `TEXT` | JSON-encoded array of dangerous permissions. |
 
--- Campaign groups (one row per unique C2 value)
-CREATE TABLE campaigns (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT    NOT NULL,  -- auto-generated or analyst-renamed
-    pivot_type  TEXT    NOT NULL,  -- 'telegram' | 'ip'
-    pivot_value TEXT    NOT NULL,  -- the shared C2 value
-    first_seen  TEXT    NOT NULL,
-    last_seen   TEXT    NOT NULL,
-    apk_count   INTEGER NOT NULL DEFAULT 1,
-    UNIQUE(pivot_type, pivot_value)
-);
-```
+### 2. `c2_indicators`
+Normalized table tracking extracted command-and-control indicators linked to scans.
 
-Query the database directly:
-```bash
-sqlite3 data/campaign.db
-```
-```sql
--- Overview
-SELECT 'APK scans',   COUNT(*) FROM apk_scans
-UNION ALL
-SELECT 'C2 indicators', COUNT(*) FROM c2_indicators
-UNION ALL
-SELECT 'Campaigns',   COUNT(*) FROM campaigns;
+| Column | Type | Description |
+|---|---|---|
+| **`id`** | `INTEGER` / `SERIAL` | Primary Key. |
+| **`scan_id`** | `INTEGER REFERENCES apk_scans(id)` | Cascading foreign key link. |
+| **`ioc_type`** | `TEXT NOT NULL` | `telegram` or `ip`. |
+| **`ioc_value`**| `TEXT NOT NULL` | Shared target string (IP or Bot Token). |
 
--- All campaigns with member count
-SELECT name, pivot_type, pivot_value, apk_count, first_seen, last_seen
-FROM campaigns ORDER BY apk_count DESC;
+### 3. `campaigns`
+Consolidated campaign clusters.
 
--- APKs in a specific campaign
-SELECT s.package, s.risk_level, s.sha256, s.scanned_at
-FROM apk_scans s
-JOIN c2_indicators c ON c.scan_id = s.id
-WHERE c.ioc_value = 't.me/yourbotname';
-```
+| Column | Type | Description |
+|---|---|---|
+| **`id`** | `INTEGER` / `SERIAL` | Primary Key. |
+| **`name`** | `TEXT NOT NULL` | Auto-generated ID or analyst-updated designation. |
+| **`pivot_type`**| `TEXT NOT NULL` | Indicator type defining the campaign (`telegram` or `ip`). |
+| **`pivot_value`**| `TEXT NOT NULL` | The literal C2 string that links the members together. |
+| **`apk_count`** | `INTEGER DEFAULT 1` | Total number of APKs clustered under this campaign. |
 
 ---
 
-## Testing
+## Usage Guide
 
-### Unit Tests
+### Triage Page (🔍 Triage)
+1. **Analyst Profile**: Fill in your analyst parameters (name, badge number, case reference) in the sidebar. This metadata is permanently stamped into the final case packages and PDF briefs.
+2. **Decompile APK**: Drag and drop a suspicious `.apk` package into the uploader. 
+3. **Automated Run-through**: The engine instantly parses the package locally, calculates risk math, checks VirusTotal reputation asynchronously, queries the Gemini model for an executive briefing, and logs the analysis to the shared database.
+4. **Acquire Court Evidence**: Download individual files or select the **Case Package (ZIP)** option. This bundles the signed PDF report, structured JSON, pre-populated escalation forms, and chain-of-custody audit logs in seconds.
 
-```bash
-source venv/bin/activate
-python test_campaign.py
+### Campaign Page (🕸️ Campaigns)
+1. **Shared Dashboard**: Review general repository stats: total analyzed APKs, identified syndicates, critical targets, and unique C2 resources.
+2. **Campaign Explorer**: Filter active threats by indicator type, review first/last-seen timestamps, drill down into campaign tables, rename campaigns, and prune database noise.
+3. **Interactive Graph**: Navigate a premiumVis.js network topology. Explore spatial nodes representing physical files and their underlying connections to servers or bot infrastructure.
+
+---
+
+## Case Package Contents
+
+The downloaded `.zip` case package contains standard forensically structured files:
+
+| File | Type | Purpose |
+|---|---|---|
+| **`triage_report_*_signed.pdf`** | Cryptographic PDF | Verifiable forensic brief signed digitally using a local `.p12` PKI certificate file. |
+| **`evidence_*.json`** | Structured JSON | Machine-readable metadata dump suitable for SIEM, MISP, or case management ingestion. |
+| **`incident_report_template_*.txt`**| Pre-filled TXT | Pre-formatted incident briefing. Simply input victim specifics and escalate directly to BNMLINK/PDRM. |
+| **`chain_of_custody_*.csv`** | Audit CSV | Non-repudiation log containing timestamps, action steps, and matching hashes (MD5, SHA-1, SHA-256). |
+| **`README.txt`** | Text Guide | File inventory and official contact directory. |
+
+---
+
+## How Campaign Clustering Works
+
+```
+[ APK Upload ]
+      │
+      ▼
+[ DEX String Parse ]
+      │
+      ├─── Extract Telegram Bot Token (bot<id>:<token>)  ──►  🟢 Telegram Pivot
+      └─── Extract Hardcoded IPv4 Address (Excluding IPs)  ──►  🔵 IP Pivot
+      │
+      ▼
+[ Database Query ]
+      │
+      ├─── Pivot Value Matches Existing Campaign?
+      │          ├─── Yes ──► Link Scan to Campaign, Increment APK Count, Update last_seen
+      │          └─── No  ──► Generate New Campaign Name, Initialize Cluster Record
 ```
 
-Runs 10 automated tests covering: basic save, duplicate SHA-256 prevention, campaign auto-creation, multi-APK grouping, campaign member queries, IP-based clustering, stats accuracy, network graph node/edge counts, campaign rename, and scan deletion with cascade.
+* **Telegram Bot Tokens**: Classed as **🔴 Very Strong** signals. They are uniquely assigned, operator-controlled, and constitute explicit evidence of syndicate coordination.
+* **IP Addresses**: Classed as **🟠 Strong** signals. They are mapped to active command-and-control nodes after removing common developer domains, CDNs, local loops, and public nameservers.
+* **URLs**: Classed as review indicators only. They are extracted and presented in reports but excluded from automated grouping logic to prevent false-positives from standard Android SDK namespaces.
 
-### Manual Test Scenarios
+---
 
-| Scenario | Steps | Expected |
+## Risk Scoring
+
+Risk scores range from **0** (Clean) to **100** (Critical) across weighted parameters:
+
+| Category | Indicator / Capability | Weight |
 |---|---|---|
-| First APK | Upload any APK | Green "Saved to campaign database (Scan #1)" toast |
-| Duplicate | Upload same APK again | Blue "Already in database" info message |
-| Campaign grouping | Upload 2 APKs sharing a Telegram token | Campaign shows `apk_count = 2` |
-| Network graph | 3+ APKs in DB | APK nodes and C2 nodes visible, connected by edges |
-| Clean APK | Upload APK with no IoCs | Saved to timeline, no new campaign created |
+| **Permissions** | `RECEIVE_SMS` (Intercept messages) | **+50** |
+| | `BIND_ACCESSIBILITY_SERVICE` (UI Stealer/Keylogging) | **+30** |
+| | `READ_SMS` (Read existing inbox) | **+25** |
+| | `SYSTEM_ALERT_WINDOW` (Overlay injection) | **+25** |
+| | `SEND_SMS` (Siloed TAC/OTP exfiltration) | **+20** |
+| | `REQUEST_INSTALL_PACKAGES` (Sideload payload updates) | **+20** |
+| **DEX / Strings**| Hardcoded IP Address (Not excluded) | **+20** each |
+| | SMS Receiver Component (Custom receiver logic) | **+25** |
+| | Telegram C2 bot token / API string | **+40** |
+| | Malaysian Banking keywords (TAC, OTP, Bank Names) | **+10** |
+| **GTI / VT** | > 20 Antivirus engines flag hash as malicious | **+50** |
+| | 6 - 20 Antivirus engines flag hash as malicious | **+30** |
+| | 1 - 5 Antivirus engines flag hash as malicious | **+15** |
+| | Malicious IP reputation match | **+20** each |
+| | Malicious URL reputation match | **+10** each |
 
-### Data Integrity Check
+---
+
+## IoC Extraction & False Positive Filtering
+
+To avoid false associations on common development domains and local networks, string parsers apply strict CIDR exclusions and namespace rules:
+
+* **Excluded IP Ranges**: Loopback (`127.0.0.0/8`), Private networks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), Link-local (`169.254.0.0/16`), multicast, emulator addresses (`10.0.2.2`), and public nameservers (`8.8.8.8`, `1.1.1.1`).
+* **Excluded URLs**: Common Android SDK references such as `schemas.android.com`, `www.w3.org`, `developer.android.com`, `firebase.google.com`, `play.google.com`, and `graph.facebook.com`.
+
+---
+
+## Deployment & Developer Workflow
+
+A-Analyzer is set up with complete continuous deployment to Streamlit Community Cloud. For detailed, step-by-step instructions on switching branches, local debugging, merging updates safely, pushing code, and synchronizing secrets, consult the **[DEVELOPMENT_WORKFLOW.md](file:///Users/mohdalifridzuanahmad/Documents/imp_docs/Projects/A-Analyzer/apk-triage/DEVELOPMENT_WORKFLOW.md)** document located in the project root.
+
+---
+
+## Testing & Verification
+
+### 1. Manual Verification Tests
+
+Ensure database mechanics, routing, and UI rendering are working seamlessly with these test scenarios:
+
+| Action | Target Step | Expected Result |
+|---|---|---|
+| **Analyze New APK** | Upload any standard APK | Display green confirmation notice: `"Saved to campaign database"`. |
+| **Verify Duplicate** | Upload the identical APK again | Display blue notification: `"Already in database — showing cached analysis"`. |
+| **Test Campaign Grouping**| Upload two distinct APKs sharing a Telegram bot token | Verify the campaign table records `apk_count = 2` for that shared token. |
+| **Explore Network Graph**| Open the Campaigns tab and navigate to the Network Graph | Verify circular APK nodes link to diamond-shaped C2 nodes with correct edges. |
+
+### 2. Live Database Connectivity Check
+To confirm that your local environment connects safely to your remote Supabase instance or local SQLite file before starting Streamlit, execute this quick connectivity command in your virtual environment:
 
 ```bash
-sqlite3 data/campaign.db << 'SQL'
-.headers on
-.mode column
--- Check for orphaned indicators
-SELECT 'Orphaned indicators:', COUNT(*)
-FROM c2_indicators c
-LEFT JOIN apk_scans s ON s.id = c.scan_id
-WHERE s.id IS NULL;
-SQL
+python -c "from campaign.db import get_connection, get_connection_url; conn=get_connection(); print('[+] Active connection:', type(conn).__name__); print('[+] Configured URL:', get_connection_url() is not None)"
 ```
-
-### Recommended Test APK Families
-
-For campaign clustering tests, use samples from these malware families (download from MalwareBazaar):
-
-| Family | C2 type | Why useful |
-|---|---|---|
-| SpyNote / SpyMax | Hardcoded IP | One operator → same VPS → multiple APKs |
-| Tria Stealer | Telegram bot token | Confirmed Malaysia/Brunei campaign, reused bot tokens |
-| TrAd / Macau Scam variants | Telegram bot | SMS stealers impersonating MY government/bank apps |
-| Cerberus / Alien | Hardcoded IP | Commercial C2 panel shared across APK builds |
-
-> ⚠️ Handle all malware samples inside a sandboxed VM only (Kali Linux / VMware recommended). Never run or extract samples on your host machine.
 
 ---
 
 ## Submission Contacts
 
-| Agency | Contact | Purpose |
+For escalating confirmed scam infrastructure and malicious APK cases:
+
+| Target | Organization | Purpose / Link |
 |---|---|---|
-| **BNMLINK** (Bank Negara Malaysia) | bnmlink@bnm.gov.my · 1-300-88-5465 | Financial fraud reports |
-| **Cyber999** (CyberSecurity Malaysia) | cyber999@cybersecurity.my · 1-300-88-2999 | Malware sample submission |
-| **PDRM CCID** | ccid.rmp.gov.my | Police reports — cybercrime |
-| **MyCERT** | mycert@cybersecurity.my | C2 IP/domain takedown requests |
-| **Telegram** | https://telegram.org/support | Bot token abuse reports |
+| **BNMLINK** | Bank Negara Malaysia | Financial fraud reports: `bnmlink@bnm.gov.my` / 1-300-88-5465 |
+| **Cyber999**| CyberSecurity Malaysia | Incident escalation & takedowns: `cyber999@cybersecurity.my` |
+| **PDRM CCID**| Commercial Crime Investigation Dept | Cybercrime reports: [ccid.rmp.gov.my](https://ccid.rmp.gov.my) |
+| **MyCERT** | Malaysia Computer Emergency Response | C2 IP/domain takedown requests: `mycert@cybersecurity.my` |
+| **Telegram**| Telegram Abuse Team | Bot token abuse reports: [telegram.org/support](https://telegram.org/support) |
 
 ---
 
 ## Limitations & Roadmap
 
-### Current Limitations
-
-- **Exact-match clustering only** — two APKs from the same syndicate that rotated their C2 infrastructure will not be linked. Fuzzy matching or ASN correlation is not yet implemented.
-- **Static analysis only** — dynamic behaviour (runtime C2 connections, payload decryption) is not observed. For dynamic analysis, submit samples to Tria.ge or Any.run.
-- **Self-signed PDF certificate** — the digital signature is cryptographically valid but not issued by a trusted CA. For formal court submission, replace `~/.apktriage_signer.p12` with an agency-issued certificate.
-- **URL clustering disabled** — URLs are extracted and shown in reports but not used as campaign pivots due to high false-positive rates from Android SDK namespace strings.
-- **No obfuscation handling** — APKs that encrypt their C2 strings at runtime will evade string-based extraction.
-
-### Potential Feature 3 — Fuzzy Campaign Linking
-- ASN/WHOIS correlation for IP-based campaigns (same subnet = same operator)
-- Telegram username cross-referencing
-- Code similarity scoring between APK variants
-- ML-based clustering on permission + IoC fingerprints
+* **Obfuscation**: Highly packed APKs or those utilizing runtime string-encryption will evade standard static extraction.
+* **Dynamic Indicators**: Out-of-band C2 addresses resolved dynamically are not tracked. For advanced behavioral analysis, execute samples in interactive sandboxes (Tria.ge or Any.run).
+* **Fuzzy campaign linkages**: Implementing ASN/WHOIS IP clustering (linking IPs belonging to the same hosting network subnet as a single campaign group) is planned for future updates.
 
 ---
 
 ## Disclaimer
 
-This tool is intended for **authorised law enforcement, financial institution security teams, and cybersecurity researchers** investigating Malaysian mobile banking fraud. All APK samples analysed should be obtained legally and handled in accordance with applicable Malaysian law (Computer Crimes Act 1997, Communications and Multimedia Act 1998).
+This software is designed exclusively for **authorized security analysts, financial threat intelligence units, and law enforcement agencies** investigating mobile-based financial scams. All analyzed samples must be acquired and managed in absolute compliance with applicable local cybersecurity legislation, including the Malaysian Computer Crimes Act 1997.
 
-The authors are not responsible for misuse of this tool or the information it produces. APK hash data is submitted to VirusTotal during analysis — do not analyse APKs containing sensitive or classified information without reviewing VirusTotal's privacy policy.
-
-> Built with ❤️ for Malaysia's cybersecurity community.
+---
+> Developed with ❤️ for Malaysia's threat intelligence community.
